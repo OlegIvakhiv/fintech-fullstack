@@ -29,6 +29,6 @@ jobs:
           with:
             node-version: '20'
         - name: Install Frontend Dependencies
-          run: cd fintech-ui && npm install
+          run: cd frontend && npm install
         - name: Build Frontend
-          run: cd fintech-ui && npm run build
+          run: cd frontend && npm run build
