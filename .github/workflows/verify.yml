@@ -17,6 +17,10 @@ jobs:
           node-version: '20'
       - name: Install Backend Dependencies
         run: cd fintech-core && npm install
+
+      - name: Generate Prisma Client
+        run: cd fintech-core && npx prisma generate
+
       - name: Build Backend
         run: cd fintech-core && npm run build
 
