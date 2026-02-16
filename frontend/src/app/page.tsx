@@ -11,7 +11,6 @@ import { useEffect, useState } from 'react';
 import { type ChartConfig } from "@/components/ui/chart"
 import { SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
-import { UI } from "./styles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar, Clock, Download, FileText, Search, Upload } from "lucide-react";
