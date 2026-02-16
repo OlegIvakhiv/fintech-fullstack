@@ -2,7 +2,7 @@
 
 A full-stack Double-Entry Bookkeeping application built with **NestJS**, **Next.js**, and **PostgreSQL**. 
 
-## 🛠 Tech Stack
+## Tech Stack
 
 ### Backend (`/fintech-core`)
 - **Framework**: NestJS
@@ -30,8 +30,7 @@ bash docker run --name fintech-db -e POSTGRES_PASSWORD=secret -d -p 5432:5432 po
 - Bash
 - cd fintech-core
 - npm install
-
-# Configure your .env with: DATABASE_URL="postgresql://postgres:secret@localhost:5432/postgres"
+- Configure your .env with: DATABASE_URL="postgresql://postgres:secret@localhost:5432/postgres"
 - npx prisma migrate dev
 - npm run start:dev
 
@@ -40,3 +39,4 @@ bash docker run --name fintech-db -e POSTGRES_PASSWORD=secret -d -p 5432:5432 po
 - cd fintech-ui
 - npm install
 - npm run dev
+
