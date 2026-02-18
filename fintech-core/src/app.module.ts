@@ -6,12 +6,13 @@ import { ConfigModule } from '@nestjs/config';
 import { TransactionsModule } from './transactions/transactions.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { PortfoliosModule } from './portfolios/portfolios.module';
+import { BusinessUnitsModule } from './business-units/business-units.module';
 
 // The main application module that imports all feature modules (Users, Transactions, Accounts, Portfolios) and sets up global configuration. 
 // It also defines the main controller and service for the application.
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), UsersModule, TransactionsModule, AccountsModule, PortfoliosModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), UsersModule, TransactionsModule, AccountsModule, PortfoliosModule, BusinessUnitsModule],
   controllers: [AppController],
   providers: [AppService],
 })

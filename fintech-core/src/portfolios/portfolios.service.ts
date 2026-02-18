@@ -6,20 +6,33 @@ import { PrismaService } from '../prisma-service/prisma.service';
 export class PortfoliosService {
   constructor(private prisma: PrismaService) {}
 
-  // create a new portfolio for a user
+  // create a new portfolio with specified name and user ID. 
+  // The request body should contain these details.
   async create(data: { name: string; userId: number }) {
     return this.prisma.portfolio.create({
       data: {
         name: data.name,
-        userId: data.userId,
+        user: { connect: { id: data.userId } } // Explicitly connect to the User
       },
     });
   }
 
-// list all portfolios with their accounts
+// get all portfolios in the system, including their associated accounts and user information.
   async findAll() {
     return this.prisma.portfolio.findMany({
-      include: { accounts: true }, 
+      include: { 
+        accounts: true,
+        user: { select: { email: true, name: true } } 
+      }, 
     });
   }
+
+  async patch(id: number, data: { name?: string }) {
+    return this.prisma.portfolio.update({
+      where: { id },
+      data,
+    });
+  }
+
+
 }

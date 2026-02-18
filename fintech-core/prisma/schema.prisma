@@ -13,9 +13,33 @@ datasource db {
   provider = "postgresql"
 }
 
+enum  Role {
+  ADMIN
+  INVESTOR
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  INVEST
+  TRANSFER
+}
+
+enum Currency {
+  USD
+  EUR
+  UAH
+}
+
 model User {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
+  id            Int       @id @default(autoincrement())
+  email         String     @unique
+  name          String?
+  password      String
+  role          Role      @default(INVESTOR)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
   portfolios Portfolio[]
 }
 
@@ -29,11 +53,29 @@ model User {
 
 model Account {
   id             Int       @id @default(autoincrement())
+  portfolioId    Int
   name           String 
   type           String
-  balance        Decimal  @default(0)
-  portfolioId    Int
+  balance        Decimal   @default(0.00)
+  currency       Currency  @default(USD)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+
   Portfolio      Portfolio @relation(fields: [portfolioId], references: [id])
+  journalEntries JournalEntry[]
+}
+
+model BusinessUnit {
+  id              Int       @id @default(autoincrement())
+  name            String
+  description     String?
+  currency        Currency @default(USD)
+  interestRate    Float    //example - production under 1.5%
+  status          String   @default("ACTIVE")  // ACTIVE, INACTIVE    
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
   journalEntries JournalEntry[]
 }
 
@@ -41,8 +83,12 @@ model JournalEntry {
   id             Int      @id @default(autoincrement())
   amount         Decimal  
   accountId      Int
-  account        Account  @relation(fields: [accountId], references: [id])
   transactionId  String 
+  businessUnitId Int?     
+  type           TransactionType @default(TRANSFER)
   description    String?
   createdAt      DateTime @default(now())
+
+  account        Account       @relation(fields: [accountId], references: [id])
+  businessUnit   BusinessUnit? @relation(fields: [businessUnitId], references: [id])
 }

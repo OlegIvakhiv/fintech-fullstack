@@ -1,5 +1,6 @@
-import { Controller, Post, Get, Body, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Patch } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
+import path from 'path';
 
 // This controller manages accounts - creating new accounts and listing accounts by portfolio. It uses AccountsService for business logic and database operations.
 
@@ -20,4 +21,12 @@ export class AccountsController {
   findAll(@Param('id') id: string) {
     return this.accountsService.findByPortfolio(+id);
   }
+
+  @Patch(':id') // PATCH /accounts/1
+  update(@Param('id') id: string, @Body() body: { name?: string; type?: string }) {
+    return this.accountsService.update(+id, body);
+  }
+  
+
+
 }
