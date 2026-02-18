@@ -40,6 +40,14 @@ function MyButton({ title, onClick }: { title: string; onClick: () => void }) {
   );
 }
 
+interface RawTransaction {
+  transactionId: string;
+  amount: number;
+  counterparty: string;
+  description: string;
+}
+
+
 export default function MyApp({ children }: { children: React.ReactNode }) {
 
   const [debit, setDebit] = useState(0);
@@ -70,15 +78,14 @@ export default function MyApp({ children }: { children: React.ReactNode }) {
   };
 
 
-  const { data: serverTransactions, isLoading } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: async () => {
-      // Accout ID wich we want to fetch the history for (hardcoded for now)
-      const response = await fetch('http://localhost:3001/transactions/history/9');
-      if (!response.ok) throw new Error('Backend is down');
-      return response.json();
-    }
-  });
+  const { data: serverTransactions, isLoading } = useQuery<RawTransaction[]>({
+  queryKey: ['transactions'],
+  queryFn: async () => {
+    const response = await fetch('http://localhost:3001/transactions/history/9');
+    if (!response.ok) throw new Error('Backend is down');
+    return response.json();
+  }
+});
 
 const transactions = serverTransactions?.map((tx: any) => ({
   id: `PAY-${tx.transactionId.split('-')[0].toUpperCase()}`,
