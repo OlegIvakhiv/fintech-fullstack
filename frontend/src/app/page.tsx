@@ -11,10 +11,6 @@ import { useEffect, useState } from 'react';
 import { type ChartConfig } from "@/components/ui/chart"
 import { SidebarHeader, SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
-<<<<<<< HEAD
-// import { UI } from "./styles";
-=======
->>>>>>> 416fa305886404213895ff4e6fc5213426a7729d
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar, Clock, Download, FileText, Search, Upload } from "lucide-react";
@@ -345,17 +341,8 @@ const transactions = serverTransactions?.map((tx: any) => ({
               </table>
             </div>
           </div>
-
-<<<<<<< HEAD
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  );
-}
-=======
       </main>
     </SidebarInset>
   </SidebarProvider>
 );
 }
->>>>>>> 416fa305886404213895ff4e6fc5213426a7729d
