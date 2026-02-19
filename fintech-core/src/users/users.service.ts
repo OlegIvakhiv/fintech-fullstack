@@ -8,14 +8,26 @@ export class UsersService {
 
   // create a new user with specified email, password, name, and role. 
   // The request body should contain these details.
+
   async create(data: CreateUserDto) {
-    return this.prisma.user.create({ 
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
         data: {
-            email: data.email,
-            password: data.password, 
-            name: data.name,
-            role: data.role || 'INVESTOR'
-        } 
+          email: data.email,
+          password: data.password,
+          name: data.name,
+          role: data.role || 'INVESTOR'
+        }
+      });
+      // After creating the user, we also create a default portfolio for them.
+      await tx.portfolio.create({
+        data: {
+          name: 'Default Portfolio',
+          userId: user.id
+        }
+      });
+
+      return user;
     });
   }
 
@@ -27,21 +39,21 @@ export class UsersService {
 
   // update a user's information based on their ID. 
   // This allows modifying the user's details such as email or password.
- async update(id: number, data: Partial<CreateUserDto>) {
+  async update(id: number, data: Partial<CreateUserDto>) {
     return this.prisma.user.update({ where: { id }, data });
   }
 
   // retrieve details of a specific user by their ID. 
   // This is used to get information about a single user.
-async findOne(id: number) {
+  async findOne(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
-      select: { 
-        id: true, 
-        email: true, 
-        name: true, 
+      select: {
+        id: true,
+        email: true,
+        name: true,
         role: true,
-        portfolios: true 
+        portfolios: true
       }
     });
   }

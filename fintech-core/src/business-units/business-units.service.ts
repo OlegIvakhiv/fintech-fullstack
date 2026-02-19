@@ -7,8 +7,10 @@ import { PrismaService } from '../prisma-service/prisma.service';
 export class BusinessUnitsService {
   constructor(private prisma: PrismaService) {}
 
-
-  async create(data: CreateBusinessUnitDto) { // Використовуй клас DTO як тип
+// create a new business unit with the provided details. 
+// The request body should contain the necessary information for creating 
+// the business unit, such as name, description, currency, and interest rate.
+  async create(data: CreateBusinessUnitDto) { 
   return await this.prisma.businessUnit.create({
     data: {
       name: data.name,
@@ -19,6 +21,9 @@ export class BusinessUnitsService {
     },
   });
 }
+
+// get a list of all active business units in the system, 
+// ordered by creation date (newest first).
   async findAll() {
     return await this.prisma.businessUnit.findMany({
       where: { status: 'ACTIVE' },
@@ -26,6 +31,8 @@ export class BusinessUnitsService {
     });
   }
 
+
+// retrieve details of a specific business unit by its ID.
   async findOne(id: number) {
     const unit = await this.prisma.businessUnit.findUnique({
       where: { id },
@@ -37,6 +44,8 @@ export class BusinessUnitsService {
     return unit;
   }
 
+
+// update a business unit's information based on its ID.
   async update(id: number, data: any) {
     return await this.prisma.businessUnit.update({
       where: { id },
@@ -44,8 +53,10 @@ export class BusinessUnitsService {
     });
   }
 
+  // Instead of physically deleting the business unit, 
+  // we perform a soft delete by changing its status to 'INACTIVE'.
   async remove(id: number) {
-    // Замість фізичного видалення краще робити soft delete (зміна статусу)
+    // soft delete - just mark as INACTIVE
     return await this.prisma.businessUnit.update({
       where: { id },
       data: { status: 'INACTIVE' },

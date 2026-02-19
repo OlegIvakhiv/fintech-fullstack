@@ -1,53 +1,58 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma-service/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
+import { CreateDepositDto, CreateInvestmentDto, CreateTransferDto, CreateWithdrawDto } from './dto/create-transactions.dto';
 
 @Injectable()
 export class TransactionsService {
     constructor(private prisma: PrismaService) { }
 
+    // trasfer - moving money from one account to another, 
+    // with double entry in JournalEntry for both accounts 
+    // (this function is not nesesery for product and can be deleted,
+    // but it is a good example of how to do a complex transaction 
+    // with multiple steps and error handling)
 
-    async createTransfer(fromAccountId: number, toAccountId: number, amount: number, description?: string) {
-        if (fromAccountId === toAccountId) {
+    async createTransfer(dto: CreateTransferDto) {
+        if (dto.fromAccountId === dto.toAccountId) {
             throw new BadRequestException('Source and destination accounts must be different');
         }
 
         const transactionId = uuidv4();
 
-        // One single DB transaction for all 4 operations
         return await this.prisma.$transaction(async (tx) => {
-            // 1. Verify and Update Sender (Decrement)
+            // geetting the sender's account to check balance and update it
             const sender = await tx.account.update({
-                where: { id: fromAccountId },
-                data: { balance: { decrement: amount } }
+                where: { id: dto.fromAccountId },
+                data: { balance: { decrement: dto.amount } }
             });
 
             if (Number(sender.balance) < 0) {
-                throw new BadRequestException('Insufficient funds');
+                throw new BadRequestException('Insufficient funds in source account');
             }
 
-            // 2. Update Recipient (Increment)
+            //  adding to the second account
             await tx.account.update({
-                where: { id: toAccountId },
-                data: { balance: { increment: amount } }
+                where: { id: dto.toAccountId },
+                data: { balance: { increment: dto.amount } }
             });
 
-            // 3. Create Journal Entries (Double-Entry Bookkeeping)
+            //  double entry into JournalEntry for both accounts
             await tx.journalEntry.createMany({
                 data: [
                     {
-                        amount: -amount,
-                        accountId: fromAccountId,
+                        amount: -dto.amount,
+                        accountId: dto.fromAccountId,
                         transactionId,
                         type: 'TRANSFER',
-                        description: description || `Transfer to account #${toAccountId}`,
+                        description: dto.description || `Transfer to account #${dto.toAccountId}`,
                     },
                     {
-                        amount: amount,
-                        accountId: toAccountId,
+                        amount: dto.amount,
+                        accountId: dto.toAccountId,
                         transactionId,
                         type: 'TRANSFER',
-                        description: description || `Transfer from account #${fromAccountId}`,
+                        description: dto.description || `Transfer from account #${dto.fromAccountId}`,
                     }
                 ]
             });
@@ -57,152 +62,124 @@ export class TransactionsService {
     }
 
 
-    // 💰 DEPOSIT: Поповнення балансу (тільки адмін у майбутньому)
-    async deposit(accountId: number, amount: number, description?: string) {
+    // deposit - adding money to the account
+    async deposit(dto: CreateDepositDto) {
         const transactionId = uuidv4();
         return await this.prisma.$transaction(async (tx) => {
             const account = await tx.account.update({
-                where: { id: accountId },
-                data: { balance: { increment: amount } }
+                where: { id: dto.accountId },
+                data: { balance: { increment: dto.amount } }
             });
 
             await tx.journalEntry.create({
                 data: {
-                    amount: amount,
-                    accountId,
+                    amount: dto.amount,
+                    accountId: dto.accountId,
                     transactionId,
                     type: 'DEPOSIT',
-                    description: description || 'Account deposit',
+                    description: dto.description || 'System Deposit',
                 }
             });
-            return { transactionId, newBalance: account.balance, status: 'SUCCESS' };
+            return { transactionId, status: 'SUCCESS', newBalance: account.balance };
         });
     }
 
-    // 💸 WITHDRAW: Виведення коштів
-    async withdraw(accountId: number, amount: number, description?: string) {
+    // withdraw - taking money out of the account
+    async withdraw(dto: CreateWithdrawDto) {
         const transactionId = uuidv4();
+
         return await this.prisma.$transaction(async (tx) => {
-            const account = await tx.account.findUnique({ where: { id: accountId } });
-            // 1. Перевірка: чи існує акаунт взагалі?
-            if (!account) {
-                throw new BadRequestException('Account not found');
+            // 1. Перевірка існування акаунта та балансу
+            const account = await tx.account.findUnique({ where: { id: dto.accountId } });
+
+            if (!account) throw new NotFoundException('Account not found');
+            if (Number(account.balance) < dto.amount) {
+                throw new BadRequestException('Insufficient funds for withdrawal');
             }
 
-            // 2. Тепер TS знає, що 'account' не null, і дозволяє доступ до balance
-            if (Number(account.balance) < amount) {
-                throw new BadRequestException('Insufficient funds');
-            }
-
+            // 2. Оновлення балансу (зменшення)
             const updatedAccount = await tx.account.update({
-                where: { id: accountId },
-                data: { balance: { decrement: amount } }
+                where: { id: dto.accountId },
+                data: { balance: { decrement: dto.amount } }
             });
 
+            // 3. Запис у JournalEntry
             await tx.journalEntry.create({
                 data: {
-                    amount: -amount,
-                    accountId,
+                    amount: -dto.amount,
+                    accountId: dto.accountId,
                     transactionId,
                     type: 'WITHDRAW',
-                    description: description || 'Funds withdrawal',
+                    description: dto.description || 'Funds withdrawal',
                 }
             });
+
             return { transactionId, newBalance: updatedAccount.balance, status: 'SUCCESS' };
         });
     }
 
-    // 📈 INVEST: Інвестиція в бізнес-юніт
-    async invest(accountId: number, businessUnitId: number, amount: number, description?: string) {
+    // invest - moving money from an account to a business unit,
+    // with a single entry in JournalEntry (since it's a one-sided transaction from the account's perspective)
+    async invest(dto: CreateInvestmentDto) {
         const transactionId = uuidv4();
         return await this.prisma.$transaction(async (tx) => {
-            // Перевіряємо баланс
-            const account = await tx.account.findUnique({ where: { id: accountId } });
-            // Перевірка на null: якщо акаунт не знайдено, викидаємо помилку
-            if (!account) {
-                throw new NotFoundException(`Account with ID ${accountId} not found`);
+            const account = await tx.account.findUnique({ where: { id: dto.accountId } });
+            if (!account || Number(account.balance) < dto.amount) {
+                throw new BadRequestException('Insufficient funds or account not found');
             }
 
-            // Тепер TypeScript знає, що account точно існує
-            if (Number(account.balance) < amount) {
-                throw new BadRequestException('Insufficient funds for investment');
-            }
-
-            // 2. Перевіряємо чи існує бізнес-юніт
-            const businessUnit = await tx.businessUnit.findUnique({ where: { id: businessUnitId } });
-            if (!businessUnit) {
-                throw new NotFoundException(`Business Unit with ID ${businessUnitId} not found`);
-            }
-            // 1. Списуємо кошти з акаунта
-            const updatedAccount = await tx.account.update({
-                where: { id: accountId },
-                data: { balance: { decrement: amount } }
+            await tx.account.update({
+                where: { id: dto.accountId },
+                data: { balance: { decrement: dto.amount } }
             });
 
-            // 2. Створюємо запис у JournalEntry із прив'язкою до BusinessUnit
-            await tx.journalEntry.create({
+            return await tx.journalEntry.create({
                 data: {
-                    amount: -amount,
-                    accountId,
-                    businessUnitId, // Зв'язуємо з бізнесом!
+                    amount: -dto.amount,
+                    accountId: dto.accountId,
+                    businessUnitId: dto.businessUnitId,
                     transactionId,
                     type: 'INVEST',
-                    description: description || `Investment in ${businessUnit.name}`,
+                    description: dto.description,
                 }
             });
-
-            return { transactionId, status: 'INVESTED', businessUnit: businessUnit.name };
         });
     }
 
 
-    // This is the method the Controller was missing
+    // --- ADMINISTRATION FUNCTIONS ---
+
+    // get all transactions, with optional filtering by type (DEPOSIT, WITHDRAW, TRANSFER, INVEST)
+    async findAll() {
+        return await this.prisma.journalEntry.findMany({
+            include: {
+                account: { include: { Portfolio: { include: { user: true } } } },
+                businessUnit: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    // Search transactions by type (DEPOSIT, WITHDRAW, TRANSFER, INVEST)
+    async findByType(type: string) {
+        return await this.prisma.journalEntry.findMany({
+            where: { type: type as any },
+            include: { account: true, businessUnit: true },
+        });
+    }
+
+
+    // get transaction history for a specific account, 
+    // ordered by date (newest first)
     async getAccountHistory(accountId: number) {
-        const entries = await this.prisma.journalEntry.findMany({
+        return await this.prisma.journalEntry.findMany({
             where: { accountId },
             include: {
-                account: {
-                    include: {
-                        Portfolio: { // Note: match your Prisma schema casing (portfolio vs Portfolio)
-                            include: { user: true }
-                        }
-                    }
+                businessUnit: {
+                    select: { name: true } // Одразу бачимо, куди інвестували
                 }
             },
             orderBy: { createdAt: 'desc' },
         });
-
-        // Map through to find the "other side" of the transaction
-        return await Promise.all(
-            entries.map(async (entry) => {
-                const counterpartyEntry = await this.prisma.journalEntry.findFirst({
-                    where: {
-                        transactionId: entry.transactionId,
-                        NOT: { id: entry.id },
-                    },
-                    include: {
-                        account: true
-                    }
-                });
-
-                return {
-                    ...entry,
-                    counterpartyAccount: counterpartyEntry?.account?.name || 'External/System',
-                    type: entry.type,
-                };
-            })
-        );
     }
-
-
-    // Get details of a specific transaction by its ID (UUID)
-    async getTransactionDetails(transactionId: string) {
-        return await this.prisma.journalEntry.findMany({
-            where: { transactionId },
-            include: {
-                account: true,
-            },
-        });
-    }
-
 }

@@ -41,12 +41,17 @@ function MyButton({ title, onClick }: { title: string; onClick: () => void }) {
 }
 
 interface RawTransaction {
+  id: number;
   transactionId: string;
   amount: number;
-  counterparty: string;
+  type: 'DEPOSIT' | 'WITHDRAW' | 'INVEST' | 'TRANSFER';
   description: string;
+  createdAt: string;
+  counterpartyAccount: string; 
+  businessUnit?: {
+    name: string;
+  };
 }
-
 
 export default function MyApp({ children }: { children: React.ReactNode }) {
 
@@ -81,21 +86,31 @@ export default function MyApp({ children }: { children: React.ReactNode }) {
   const { data: serverTransactions, isLoading } = useQuery<RawTransaction[]>({
   queryKey: ['transactions'],
   queryFn: async () => {
-    const response = await fetch('http://localhost:3001/transactions/history/9');
+    const response = await fetch('http://localhost:3001/transactions/history/1');
     if (!response.ok) throw new Error('Backend is down');
     return response.json();
   }
 });
 
-const transactions = serverTransactions?.map((tx: any) => ({
-  id: `PAY-${tx.transactionId.split('-')[0].toUpperCase()}`,
-  amount: `${tx.amount > 0 ? '+' : ''}${tx.amount.toLocaleString()} USD`,
-  to: tx.counterparty, 
-  details: tx.description, 
-  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${tx.counterparty}`, // Random avatar 
-  method: "Internal Wire",
-  status: "Processed"
-})) || [];
+const transactions = serverTransactions?.map((tx: RawTransaction) => {
+  // Визначаємо відображуване ім'я отримувача/відправника
+  // Якщо це інвестиція і є бізнес-юніт — показуємо його назву
+  const displayName = tx.type === 'INVEST' && tx.businessUnit 
+    ? tx.businessUnit.name 
+    : tx.counterpartyAccount;
+
+  return {
+    id: `TX-${tx.transactionId.split('-')[0].toUpperCase()}`,
+    // Форматуємо суму з валютою (можна додати поле currency з акаунта пізніше)
+    amount: `${tx.amount > 0 ? '+' : ''}${Number(tx.amount).toLocaleString()} USD`,
+    to: displayName, 
+    details: tx.description || `${tx.type} operation`,
+  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${tx.counterpartyAccount}`, // Random avatar 
+method: tx.type, // Тепер тут буде INVEST, DEPOSIT тощо
+    status: "Completed",
+    type: tx.type // Зберігаємо тип для стилізації (колір суми тощо)
+  };
+}) || [];
 
 
   const dtransactions = [
