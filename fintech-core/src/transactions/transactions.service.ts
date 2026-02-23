@@ -189,7 +189,7 @@ export class TransactionsService {
             // 1. Перевірка рахунку та балансу
             const account = await tx.account.findUnique({
                 where: { id: dto.accountId },
-                include: { Portfolio: true }
+                include: { portfolio: true }
             });
 
             if (!account) throw new NotFoundException('Рахунок не знайдено');
@@ -256,7 +256,7 @@ export class TransactionsService {
     async findAll() {
         return await this.prisma.journalEntry.findMany({
             include: {
-                account: { include: { Portfolio: { include: { user: true } } } },
+                account: { include: { portfolio: { include: { user: true } } } },
                 businessUnit: true,
             },
             orderBy: { createdAt: 'desc' },
