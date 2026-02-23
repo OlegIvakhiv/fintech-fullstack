@@ -13,7 +13,7 @@ datasource db {
   provider = "postgresql"
 }
 
-enum  Role {
+enum Role {
   ADMIN
   INVESTOR
 }
@@ -23,6 +23,7 @@ enum TransactionType {
   WITHDRAW
   INVEST
   TRANSFER
+  DIVEST
 }
 
 enum Currency {
@@ -31,64 +32,95 @@ enum Currency {
   UAH
 }
 
+enum BusinessUnitStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InvestmentStatus {
+  ACTIVE
+  WITHDRAWN
+}
+
 model User {
-  id            Int       @id @default(autoincrement())
-  email         String     @unique
-  name          String?
-  password      String
-  role          Role      @default(INVESTOR)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  password  String
+  role      Role     @default(INVESTOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   portfolios Portfolio[]
 }
 
- model Portfolio {
-  id       Int       @id @default(autoincrement())
-  name     String 
-  userId   Int
-  user     User      @relation(fields: [userId], references: [id])
-  accounts Account[]
- }
+model Portfolio {
+  id          Int          @id @default(autoincrement())
+  name        String
+  userId      Int
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts    Account[]    @relation("PortfolioToAccount")
+  investments Investment[] @relation("PortfolioToInvestment")
+}
 
 model Account {
-  id             Int       @id @default(autoincrement())
-  portfolioId    Int
-  name           String 
-  type           String
-  balance        Decimal   @default(0.00)
-  currency       Currency  @default(USD)
+  id          Int      @id @default(autoincrement())
+  portfolioId Int
+  name        String
+  type        String
+  balance     Decimal  @default(0.00) @db.Decimal(18, 2)
+  currency    Currency @default(USD)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-
-  Portfolio      Portfolio @relation(fields: [portfolioId], references: [id])
-  journalEntries JournalEntry[]
+  portfolio      Portfolio      @relation("PortfolioToAccount", fields: [portfolioId], references: [id])
+  journalEntries JournalEntry[] @relation("AccountToJournal")
 }
 
 model BusinessUnit {
-  id              Int       @id @default(autoincrement())
-  name            String
-  description     String?
-  currency        Currency @default(USD)
-  interestRate    Float    //example - production under 1.5%
-  status          String   @default("ACTIVE")  // ACTIVE, INACTIVE    
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  name         String
+  description  String?
+  currency     Currency @default(USD)
+  balance      Decimal  @default(0) @db.Decimal(18, 2)
+  interestRate Float
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  journalEntries JournalEntry[]
+  investments    Investment[]   @relation("BusinessUnitToInvestment")
+  journalEntries JournalEntry[] @relation("BusinessUnitToJournal")
+}
+
+model Investment {
+  id             Int              @id @default(autoincrement())
+  portfolioId    Int
+  businessUnitId Int
+  amount         Decimal          @db.Decimal(18, 2)
+  currency       Currency
+  status         InvestmentStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  portfolio      Portfolio      @relation("PortfolioToInvestment", fields: [portfolioId], references: [id], onDelete: Cascade)
+  businessUnit   BusinessUnit   @relation("BusinessUnitToInvestment", fields: [businessUnitId], references: [id], onDelete: Restrict)
+  journalEntries JournalEntry[] @relation("InvestmentToJournal")
 }
 
 model JournalEntry {
-  id             Int      @id @default(autoincrement())
-  amount         Decimal  
+  id             Int             @id @default(autoincrement())
+  amount         Decimal         @db.Decimal(18, 2)
   accountId      Int
-  transactionId  String 
-  businessUnitId Int?     
+  transactionId  String          @default(uuid())
+  businessUnitId Int?
+  investmentId   Int?
   type           TransactionType @default(TRANSFER)
   description    String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime        @default(now())
 
-  account        Account       @relation(fields: [accountId], references: [id])
-  businessUnit   BusinessUnit? @relation(fields: [businessUnitId], references: [id])
+  account      Account       @relation("AccountToJournal", fields: [accountId], references: [id], onDelete: Cascade)
+  businessUnit BusinessUnit? @relation("BusinessUnitToJournal", fields: [businessUnitId], references: [id])
+  investment   Investment?   @relation("InvestmentToJournal", fields: [investmentId], references: [id])
+
+  @@index([transactionId])
 }

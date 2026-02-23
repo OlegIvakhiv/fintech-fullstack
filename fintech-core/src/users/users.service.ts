@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma-service/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
@@ -10,11 +11,13 @@ export class UsersService {
   // The request body should contain these details.
 
   async create(data: CreateUserDto) {
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(data.password, salt);
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           email: data.email,
-          password: data.password,
+          password: hashedPassword,
           name: data.name,
           role: data.role || 'INVESTOR'
         }
@@ -63,6 +66,15 @@ export class UsersService {
   async remove(id: number) {
     return this.prisma.user.delete({ where: { id } });
   }
+
+  // src/users/users.service.ts
+  async findByEmail(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new UnauthorizedException('Користувача не знайдено');
+    return user;
+  }
+
+
 }
 
 

@@ -1,15 +1,21 @@
-import { Controller, Post, Body, Get, Param, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
-import { CreateDepositDto, CreateInvestmentDto, CreateTransferDto, CreateWithdrawDto } from './dto/create-transactions.dto';
+import { CreateDepositDto, CreateDivestmentDto, CreateInvestmentDto, CreateTransferDto, CreateWithdrawDto } from './dto/create-transactions.dto';
+import { RolesGuard } from 'src/auth/guards/roles.guards';
+import { Roles } from 'src/auth/decorator/roles.decorator';
+import { Role } from '@prisma/client';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 
 @Controller('transactions')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class TransactionsController {
     constructor(private readonly transactionsService: TransactionsService) { }
 
     // admin method - get all transactions, filter by type, 
     // get history by account, get details by transaction ID
     @Get('all') // GET /transactions/all
+    @Roles(Role.ADMIN)
     async getAll() {
         return this.transactionsService.findAll();
     }
@@ -17,16 +23,19 @@ export class TransactionsController {
     // filtre transactions by type (INVEST, DEPOSIT, TRANSFER, WITHDRAW)
 
     @Get('filter') // GET /transactions/filter?type=INVEST
+    @Roles(Role.ADMIN)
     async getByType(@Query('type') type: string) {
         return this.transactionsService.findByType(type);
     }
 
     @Post('transfer') // POST /transactions/transfer
+    @Roles(Role.ADMIN, Role.INVESTOR)
     async transfer(@Body() dto: CreateTransferDto) {
         return this.transactionsService.createTransfer(dto);
     }
 
     @Get('history/:accountId') // GET /transactions/history/1
+    @Roles(Role.ADMIN)  
     async getHistory(@Param('accountId') accountId: string) {
         return this.transactionsService.getAccountHistory(+accountId);
     }
@@ -36,11 +45,12 @@ export class TransactionsController {
 
 
 
-@Controller('investments') 
+@Controller('investments')
 export class InvestmentsController {
-    constructor(private readonly transactionsService: TransactionsService) {}
-   
+    constructor(private readonly transactionsService: TransactionsService) { }
+
     @Post() // POST /investments
+    @Roles(Role.ADMIN, Role.INVESTOR)
     async createInvestment(@Body() dto: CreateInvestmentDto) {
         return await this.transactionsService.invest(dto);
     }
@@ -51,9 +61,10 @@ export class InvestmentsController {
 
 @Controller('deposits')
 export class DepositsController {
-    constructor(private readonly transactionsService: TransactionsService) {}
+    constructor(private readonly transactionsService: TransactionsService) { }
 
     @Post() // POST /deposits
+    @Roles(Role.ADMIN)
     async createDeposit(@Body() dto: CreateDepositDto) {
         return await this.transactionsService.deposit(dto);
     }
@@ -63,10 +74,24 @@ export class DepositsController {
 
 @Controller('withdraw')
 export class WithdrawController {
-    constructor(private readonly transactionsService: TransactionsService) {}
+    constructor(private readonly transactionsService: TransactionsService) { }
 
     @Post() // POST /withdraw
+    @Roles(Role.ADMIN)
     async createWithdraw(@Body() dto: CreateWithdrawDto) {
         return await this.transactionsService.withdraw(dto);
     }
 }
+
+
+@Controller('divestments')
+export class DivestmentsController {
+    constructor(private readonly transactionsService: TransactionsService) { }
+
+    @Post() // POST /divestments
+    @Roles(Role.ADMIN)
+    async createDivestment(@Body() dto: CreateDivestmentDto) {
+        return await this.transactionsService.divest(dto);
+    }
+}
+

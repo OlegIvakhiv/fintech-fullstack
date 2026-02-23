@@ -1,64 +1,76 @@
 import { IsNumber, IsString, IsOptional, Min } from 'class-validator';
 
-// DTO for creating a transfer transaction
 export class CreateTransferDto {
     @IsNumber()
-    fromAccountId: number; // Changed from accountId to fromAccountId for clarity
+    fromAccountId: number;
 
     @IsNumber()
-    toAccountId: number; // Added toAccountId for transfer destination
+    toAccountId: number;
 
     @IsNumber()
     @Min(0.01)
-    amount: number; // Added validation to ensure amount is positive
+    amount: number;
 
     @IsOptional()
     @IsString()
-    description?: string; // Optional description for the transfer
+    description?: string;
 }
 
-// DTO for creating a deposit transaction
 export class CreateDepositDto {
     @IsNumber()
-    accountId: number; // Account to which the deposit will be made
+    accountId: number;
 
     @IsNumber()
     @Min(0.01)
-    amount: number; // Added validation to ensure amount is positive
-    
+    amount: number;
+
     @IsOptional()
     @IsString()
-    description?: string; // Optional description for the deposit
+    description?: string;
 }
 
-// DTO for creating an investment transaction
 export class CreateInvestmentDto {
     @IsNumber()
-    accountId: number; // Account from which the investment will be made
+    accountId: number;
 
     @IsNumber()
-    businessUnitId: number; // Business unit in which the investment will be made
+    businessUnitId: number;
 
     @IsNumber()
     @Min(0.01)
-    amount: number; // Added validation to ensure amount is positive
+    amount: number;
 
     @IsOptional()
     @IsString()
-    description?: string; // Optional description for the investment
+    description?: string;
 }
 
-// DTO for creating a withdraw transaction
 export class CreateWithdrawDto {
     @IsNumber()
-    accountId: number;  // Account from which the withdrawal will be made
+    accountId: number;
 
     @IsNumber()
     @Min(0.01)
-    amount: number;  // Added validation to ensure amount is positive
+    amount: number;
 
     @IsOptional()
     @IsString()
-    description?: string; // Optional description for the withdrawal
+    description?: string;
 }
 
+// Новий DTO для виводу з інвестиції
+export class CreateDivestmentDto {
+    @IsNumber()
+    accountId: number; // Куди повернути гроші
+
+    @IsNumber()
+    businessUnitId: number; // З якого проекту забрати
+
+    @IsNumber()
+    @Min(0.01)
+    amount: number;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+}

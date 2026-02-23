@@ -8,6 +8,7 @@ import { AccountsModule } from './accounts/accounts.module';
 import { PortfoliosModule } from './portfolios/portfolios.module';
 import { BusinessUnitsModule } from './business-units/business-units.module';
 import { PrismaModule } from './prisma-service/prisma.module';
+import { AuthModule } from './auth/auth-module';
 
 // The main application module that imports all feature modules (Users, Transactions, Accounts, Portfolios) and sets up global configuration. 
 // It also defines the main controller and service for the application. 
@@ -18,6 +19,7 @@ import { PrismaModule } from './prisma-service/prisma.module';
     AccountsModule, 
     PortfoliosModule, 
     BusinessUnitsModule,
+    AuthModule,
     PrismaModule
   ],
   controllers: [AppController],
