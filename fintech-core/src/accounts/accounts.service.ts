@@ -14,7 +14,7 @@ export class AccountsService {
         name: data.name,
         type: data.type,
         balance: data.initialBalance || 0,
-        Portfolio: { connect: { id: data.portfolioId } }
+        portfolio: { connect: { id: data.portfolioId } }
       },
     });
   }
