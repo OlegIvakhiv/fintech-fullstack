@@ -1,42 +1,104 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { BusinessUnitsService } from './business-units.service';
 import { CreateBusinessUnitDto } from './dto/create-business-unit.dto';
 import { UpdateBusinessUnitDto } from './dto/update-business-unit.dto';
+import { SetMonthlyROIDto } from './dto/set-monthly-roi.dto';
 import { RolesGuard } from 'src/auth/guards/roles.guards';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Role } from '@prisma/client/index-browser';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 
+// Controller for managing business units - creating, listing, and ROI management
 @Controller('business-units')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BusinessUnitsController {
-  constructor(private readonly businessUnitsService: BusinessUnitsService) {}
+  constructor(private readonly businessUnitsService: BusinessUnitsService) { }
 
-  @Post() // POST /business-units
+  // ✅ POST /business-units - Create new business unit (ADMIN only)
+  @Post()
   @Roles(Role.ADMIN)
   create(@Body() createBusinessUnitDto: CreateBusinessUnitDto) {
     return this.businessUnitsService.create(createBusinessUnitDto);
   }
 
-  @Get() // GET /business-units
+  // ✅ GET /business-units - List all active business units
+  @Get()
   @Roles(Role.ADMIN, Role.INVESTOR)
   findAll() {
     return this.businessUnitsService.findAll();
   }
 
-  @Get(':id') // GET /business-units/1
+  // ✅ GET /business-units/:id - Get details of specific business unit
+  @Get(':id')
   @Roles(Role.ADMIN, Role.INVESTOR)
   findOne(@Param('id') id: string) {
     return this.businessUnitsService.findOne(+id);
   }
 
-  @Patch(':id') // PATCH /business-units/1
+  // ✅ NEW: POST /business-units/:id/roi - Set monthly ROI (ADMIN only)
+  // Body: {
+  //   "month": 3,
+  //   "year": 2024,
+  //   "monthlyROI": 1.5,
+  //   "totalPoolValue": 50000
+  // }
+  @Post(':id/roi')
+  @Roles(Role.ADMIN)
+  setMonthlyROI(@Param('id') id: string, @Body() dto: SetMonthlyROIDto) {
+    return this.businessUnitsService.setMonthlyROI(+id, dto);
+  }
+
+  // ✅ NEW: GET /business-units/:id/roi-history - Get ROI history (ADMIN & INVESTOR)
+  // Query params: ?year=2024 (optional)
+  @Get(':id/roi-history')
+  @Roles(Role.ADMIN, Role.INVESTOR)
+  getROIHistory(@Param('id') id: string, @Query('year') year?: string) {
+    return this.businessUnitsService.getROIHistory(+id, year ? +year : undefined);
+  }
+
+  // ✅ NEW: GET /business-units/:id/roi-current - Get current month's ROI
+  @Get(':id/roi-current')
+  @Roles(Role.ADMIN, Role.INVESTOR)
+  getCurrentMonthROI(@Param('id') id: string) {
+    return this.businessUnitsService.getCurrentMonthROI(+id);
+  }
+
+  @Get(':id/current-month-projection/:amount')
+  async getCurrentMonthProjection(
+    @Param('id') id: string,
+    @Param('amount') amount: string,
+  ) {
+    return this.businessUnitsService.getCurrentMonthProjection(
+      +id,
+      parseFloat(amount),
+    );
+  }
+
+  // ✅ NEW: GET /business-units/:buId/investor-earnings/:investmentAmount
+  // Calculates how much an investor has earned based on their investment
+  // Example: GET /business-units/1/investor-earnings/1000
+  @Get(':buId/investor-earnings/:investmentAmount')
+  @Roles(Role.ADMIN, Role.INVESTOR)
+  calculateInvestorEarnings(
+    @Param('buId') buId: string,
+    @Param('investmentAmount') investmentAmount: string,
+  ) {
+    return this.businessUnitsService.calculateInvestorEarnings(
+      +buId, // investmentId (not used in this version, could be enhanced)
+      +investmentAmount,
+      +buId,
+    );
+  }
+
+  // ✅ PATCH /business-units/:id - Update business unit info (ADMIN only)
+  @Patch(':id')
   @Roles(Role.ADMIN)
   update(@Param('id') id: string, @Body() updateBusinessUnitDto: UpdateBusinessUnitDto) {
     return this.businessUnitsService.update(+id, updateBusinessUnitDto);
   }
 
-  @Delete(':id') // DELETE /business-units/1
+  // ✅ DELETE /business-units/:id - Soft delete business unit (ADMIN only)
+  @Delete(':id')
   @Roles(Role.ADMIN)
   remove(@Param('id') id: string) {
     return this.businessUnitsService.remove(+id);

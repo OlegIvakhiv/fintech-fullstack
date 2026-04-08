@@ -1,10 +1,12 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
-import { JwtStrategy } from './guards/jwt.strategy'; // ПЕРЕВІР ЦЕЙ ІМПОРТ
+import { JwtStrategy } from './guards/jwt.strategy'; 
 import { AuthController } from './auth-controller';
+import { UsersModule } from 'src/users/users.module';
 
+// This module handles user authentication and authorization
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -12,9 +14,10 @@ import { AuthController } from './auth-controller';
       secret: process.env.JWT_SECRET || 'SUPER_SECRET_KEY',
       signOptions: { expiresIn: '1d' },
     }),
+     forwardRef(() => UsersModule),
   ],
-  providers: [AuthService, JwtStrategy], // СТРАТЕГІЯ ТУТ
-  exports: [AuthService, PassportModule], // ЕКСПОРТ ПАСПОРТА ТУТ
+  providers: [AuthService, JwtStrategy], 
+  exports: [AuthService, PassportModule], 
   controllers: [AuthController],
 })
 export class AuthModule {}

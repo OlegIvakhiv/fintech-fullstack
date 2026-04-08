@@ -136,3 +136,24 @@
     @apply bg-background text-foreground;
   }
 }
+
+[role="dialog"] {
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  justify-content: center !important;
+  padding: 1rem !important;
+}
+
+[role="dialog"] > div {
+  pointer-events: auto !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+}
+
+
+
+input[type="number"] {
+  -moz-appearance: textfield; /* Firefox */
+  appearance: textfield;
+}

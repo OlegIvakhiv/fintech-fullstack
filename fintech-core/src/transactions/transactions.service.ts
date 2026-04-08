@@ -8,12 +8,11 @@ import { InvestmentStatus, TransactionType } from '@prisma/client';
 export class TransactionsService {
     constructor(private prisma: PrismaService) { }
 
-    // trasfer - moving money from one account to another, 
-    // with double entry in JournalEntry for both accounts 
-    // (this function is not nesesery for product and can be deleted,
-    // but it is a good example of how to do a complex transaction 
-    // with multiple steps and error handling)
+    // ========== EXISTING METHODS ==========
 
+    // Transfer - moving money from one account to another, 
+    // with double entry in JournalEntry for both accounts 
+    // (NOTE: not necessary for product - kept as reference implementation)
     async createTransfer(dto: CreateTransferDto) {
         if (dto.fromAccountId === dto.toAccountId) {
             throw new BadRequestException('Source and destination accounts must be different');
@@ -22,7 +21,7 @@ export class TransactionsService {
         const transactionId = uuidv4();
 
         return await this.prisma.$transaction(async (tx) => {
-            // geetting the sender's account to check balance and update it
+            // Getting the sender's account to check balance and update it
             const sender = await tx.account.update({
                 where: { id: dto.fromAccountId },
                 data: { balance: { decrement: dto.amount } }
@@ -32,13 +31,13 @@ export class TransactionsService {
                 throw new BadRequestException('Insufficient funds in source account');
             }
 
-            //  adding to the second account
+            // Adding to the second account
             await tx.account.update({
                 where: { id: dto.toAccountId },
                 data: { balance: { increment: dto.amount } }
             });
 
-            //  double entry into JournalEntry for both accounts
+            // Double entry into JournalEntry for both accounts
             await tx.journalEntry.createMany({
                 data: [
                     {
@@ -62,8 +61,8 @@ export class TransactionsService {
         });
     }
 
-
-    // deposit - adding money to the account
+    // Deposit - adding money to the account
+    // Used by admins to add funds to investor accounts
     async deposit(dto: CreateDepositDto) {
         const transactionId = uuidv4();
         return await this.prisma.$transaction(async (tx) => {
@@ -85,14 +84,14 @@ export class TransactionsService {
         });
     }
 
-
-
-    // withdraw - taking money out of the account
+    // Withdraw - taking money out of the account
+    // Used for Type 3 withdrawals (Account to External)
+    // Now called withdrawToExternal to clarify its purpose
     async withdraw(dto: CreateWithdrawDto) {
         const transactionId = uuidv4();
 
         return await this.prisma.$transaction(async (tx) => {
-            // checking the account and balance
+            // Check the account and balance
             const account = await tx.account.findUnique({ where: { id: dto.accountId } });
 
             if (!account) throw new NotFoundException('Account not found');
@@ -100,42 +99,54 @@ export class TransactionsService {
                 throw new BadRequestException('Insufficient funds for withdrawal');
             }
 
-            // update the account - decrease the balance
+            // Update the account - decrease the balance
             const updatedAccount = await tx.account.update({
                 where: { id: dto.accountId },
                 data: { balance: { decrement: dto.amount } }
             });
 
-            // writing to JournalEntry
+            // Write to JournalEntry
             await tx.journalEntry.create({
                 data: {
                     amount: -dto.amount,
                     accountId: dto.accountId,
                     transactionId,
                     type: 'WITHDRAW',
-                    description: dto.description || 'Funds withdrawal',
+                    description: dto.description || 'External funds withdrawal',
                 }
             });
 
-            return { transactionId, newBalance: updatedAccount.balance, status: 'SUCCESS' };
+            return { 
+                transactionId, 
+                newBalance: updatedAccount.balance, 
+                status: 'SUCCESS',
+                description: 'Funds withdrawn from account to external wallet'
+            };
         });
     }
 
+    // Alternative name for withdraw - more explicit about purpose
+    // Type 3: Account to External Withdrawal
+    async withdrawToExternal(dto: CreateWithdrawDto) {
+        // Simply delegates to withdraw() since the logic is identical
+        // The difference is semantic - this is explicitly for external withdrawals
+        return this.withdraw(dto);
+    }
 
-    // Divestment - moving money from the business unit back to the account,
-    // with double entry in JournalEntry for both account and business unit
-
+    // Divest - moving money from the business unit back to the account
+    // Type 1: Business Unit to Account
+    // Also used as the first step in Type 2 transfers
     async divest(dto: CreateDivestmentDto) {
         const transactionId = uuidv4();
 
         return await this.prisma.$transaction(async (tx) => {
-            // finding the account to return money to and check if it exists
+            // Find the account to return money to and check if it exists
             const account = await tx.account.findUnique({
                 where: { id: dto.accountId }
             });
-            if (!account) throw new NotFoundException('Рахунок для повернення не знайдено');
+            if (!account) throw new NotFoundException('Account not found for divestment');
 
-            // Finding the active investment for this account and business unit
+            // Find the active investment for this account and business unit
             const investment = await tx.investment.findFirst({
                 where: {
                     portfolioId: account.portfolioId,
@@ -145,8 +156,8 @@ export class TransactionsService {
                 include: { businessUnit: true }
             });
 
-            if (!investment) throw new BadRequestException('Активної інвестиції в цей проект не знайдено');
-            if (Number(investment.amount) < dto.amount) throw new BadRequestException('Сума перевищує тіло інвестиції');
+            if (!investment) throw new BadRequestException('No active investment in this business unit');
+            if (Number(investment.amount) < dto.amount) throw new BadRequestException('Withdrawal amount exceeds invested amount');
 
             // Update the investment - decrease the amount and if it becomes 0, mark as WITHDRAWN
             const newAmount = Number(investment.amount) - dto.amount;
@@ -158,13 +169,13 @@ export class TransactionsService {
                 }
             });
 
-            // return money to the account
+            // Return money to the account
             await tx.account.update({
                 where: { id: dto.accountId },
                 data: { balance: { increment: dto.amount } }
             });
 
-            // double entry in JournalEntry for both account and business unit
+            // Create journal entry for the divestment
             return await tx.journalEntry.create({
                 data: {
                     amount: dto.amount,
@@ -173,41 +184,40 @@ export class TransactionsService {
                     investmentId: investment.id,
                     transactionId: transactionId,
                     type: TransactionType.DIVEST,
-                    description: dto.description || `Вивід з проекту ${investment.businessUnit.name}`,
+                    description: dto.description || `Withdrawal from investment in ${investment.businessUnit.name}`,
                 }
             });
         });
     }
 
-
-    // invest - moving money from the account to the business unit, 
-    // with double entry in JournalEntry for both account and business unit
+    // Invest - moving money from the account to the business unit
+    // Account to Business Unit
     async invest(dto: CreateInvestmentDto) {
         const transactionId = uuidv4();
 
         return await this.prisma.$transaction(async (tx) => {
-            // 1. Перевірка рахунку та балансу
+            // 1. Check account and balance
             const account = await tx.account.findUnique({
                 where: { id: dto.accountId },
                 include: { portfolio: true }
             });
 
-            if (!account) throw new NotFoundException('Рахунок не знайдено');
+            if (!account) throw new NotFoundException('Account not found');
             if (Number(account.balance) < dto.amount) {
-                throw new BadRequestException('Недостатньо коштів на рахунку');
+                throw new BadRequestException('Insufficient funds in account');
             }
 
-            // 2. Списання з балансу
+            // 2. Deduct from account balance
             await tx.account.update({
                 where: { id: dto.accountId },
                 data: { balance: { decrement: dto.amount } }
             });
 
-            // 3. Робота з інвестицією
+            // 3. Work with investment
             const bu = await tx.businessUnit.findUnique({ where: { id: dto.businessUnitId } });
-            if (!bu) throw new NotFoundException('Бізнес-юніт не знайдено');
+            if (!bu) throw new NotFoundException('Business unit not found');
 
-            // Шукаємо існуючу активну інвестицію для цього портфеля
+            // Look for existing active investment for this portfolio
             let investment = await tx.investment.findFirst({
                 where: {
                     portfolioId: account.portfolioId,
@@ -217,11 +227,13 @@ export class TransactionsService {
             });
 
             if (investment) {
+                // Update existing investment
                 investment = await tx.investment.update({
                     where: { id: investment.id },
                     data: { amount: { increment: dto.amount } }
                 });
             } else {
+                // Create new investment
                 investment = await tx.investment.create({
                     data: {
                         portfolioId: account.portfolioId,
@@ -233,7 +245,7 @@ export class TransactionsService {
                 });
             }
 
-            // 4. Лог у JournalEntry
+            // 4. Create journal entry
             return await tx.journalEntry.create({
                 data: {
                     amount: dto.amount,
@@ -242,17 +254,15 @@ export class TransactionsService {
                     investmentId: investment.id,
                     transactionId: transactionId,
                     type: TransactionType.INVEST,
-                    description: dto.description || `Інвестиція в ${bu.name}`,
+                    description: dto.description || `Investment in ${bu.name}`,
                 }
             });
         });
     }
 
+    // ========== ADMINISTRATION FUNCTIONS ==========
 
-
-    // --- ADMINISTRATION FUNCTIONS ---
-
-    // get all transactions, with optional filtering by type (DEPOSIT, WITHDRAW, TRANSFER, INVEST)
+    // Get all transactions, with optional filtering by type
     async findAll() {
         return await this.prisma.journalEntry.findMany({
             include: {
@@ -263,7 +273,7 @@ export class TransactionsService {
         });
     }
 
-    // Search transactions by type (DEPOSIT, WITHDRAW, TRANSFER, INVEST)
+    // Search transactions by type (INVEST, DEPOSIT, TRANSFER, WITHDRAW, DIVEST)
     async findByType(type: string) {
         return await this.prisma.journalEntry.findMany({
             where: { type: type as any },
@@ -271,15 +281,14 @@ export class TransactionsService {
         });
     }
 
-
-    // get transaction history for a specific account, 
-    // ordered by date (newest first)
+    // Get transaction history for a specific account
+    // Ordered by date (newest first)
     async getAccountHistory(accountId: number) {
         return await this.prisma.journalEntry.findMany({
             where: { accountId },
             include: {
                 businessUnit: {
-                    select: { name: true } // Одразу бачимо, куди інвестували
+                    select: { name: true }
                 }
             },
             orderBy: { createdAt: 'desc' },

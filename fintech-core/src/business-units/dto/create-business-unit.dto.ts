@@ -3,16 +3,16 @@ import { Currency } from '@prisma/client';
 
 export class CreateBusinessUnitDto {
   @IsString()
-  name: string;
+  name: string; // Name of the business unit
 
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string; // Description of the business unit
 
   @IsOptional()
   @IsEnum(Currency)
-  currency?: Currency;
+  currency?: Currency; // Currency of the business unit
 
   @IsNumber()
-  interestRate: number;
+  interestRate: number; // Interest rate of the business unit
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Patch, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Patch, Delete, UseGuards, Req } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto } from './dto/create-accounts.dto';
 import { RolesGuard } from 'src/auth/guards/roles.guards';
@@ -25,6 +25,13 @@ export class AccountsController {
   @Roles(Role.ADMIN)
   findAll() {
     return this.accountsService.findAll();
+  }
+
+  @Get('me') // GET /accounts/me
+  @Roles(Role.ADMIN, Role.INVESTOR)   
+  async getMyAccounts(@Req() req) {
+    const userId = req.user.userId;    // from JWT strategy
+    return this.accountsService.findByUser(userId);
   }
 
   @Get(':id') // GET /accounts/1

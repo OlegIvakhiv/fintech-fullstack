@@ -44,8 +44,9 @@ export class TransactionsController {
 
 
 
-
+// invest - moving money from the account to the business unit
 @Controller('investments')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class InvestmentsController {
     constructor(private readonly transactionsService: TransactionsService) { }
 
@@ -58,8 +59,9 @@ export class InvestmentsController {
 
 
 
-
+// deposit - adding money to the account
 @Controller('deposits')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class DepositsController {
     constructor(private readonly transactionsService: TransactionsService) { }
 
@@ -71,8 +73,9 @@ export class DepositsController {
 }
 
 
-
+// withdraw - taking money out of the account
 @Controller('withdraw')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class WithdrawController {
     constructor(private readonly transactionsService: TransactionsService) { }
 
@@ -83,8 +86,9 @@ export class WithdrawController {
     }
 }
 
-
+// divest - moving money from the business unit back to the account
 @Controller('divestments')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class DivestmentsController {
     constructor(private readonly transactionsService: TransactionsService) { }
 

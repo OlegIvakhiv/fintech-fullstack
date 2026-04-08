@@ -9,7 +9,7 @@ import { DepositsController, InvestmentsController, TransactionsController, With
     DepositsController, 
     WithdrawController
   ],
-  
+  exports: [TransactionsService],
   providers: [TransactionsService],
 })
 export class TransactionsModule {}

@@ -1,16 +1,23 @@
-import { IsNumber, IsOptional, IsString } from "class-validator";
+import { IsString, IsEnum, IsOptional, IsNumber } from 'class-validator';
+import { Currency } from '@prisma/client';
 
 export class CreateAccountDto {
   @IsString()
   name: string;
 
   @IsString()
-  type: string; // can be 'checking', 'savings', 'investment', etc.
+  type: string;
+
+  @IsEnum(Currency, {
+    message: 'currency must be one of: USD, EUR, UAH',
+  })
+  currency: Currency;
 
   @IsNumber()
-  portfolioId: number;
-
   @IsOptional()
-  @IsNumber()
   initialBalance?: number;
+
+  @IsNumber()
+  @IsOptional()
+  portfolioId?: number;
 }

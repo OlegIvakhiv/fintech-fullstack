@@ -9,9 +9,14 @@ import { PortfoliosModule } from './portfolios/portfolios.module';
 import { BusinessUnitsModule } from './business-units/business-units.module';
 import { PrismaModule } from './prisma-service/prisma.module';
 import { AuthModule } from './auth/auth-module';
+import { WithdrawalRequestsModule } from './withdrawal-requests/withdrawal-requests.module';
+import { DashboardService } from './dashboard/dashboard.service';
+import { DashboardController } from './dashboard/dashboard.controller';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 // The main application module that imports all feature modules (Users, Transactions, Accounts, Portfolios) and sets up global configuration. 
 // It also defines the main controller and service for the application. 
+
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), UsersModule, 
@@ -20,10 +25,12 @@ import { AuthModule } from './auth/auth-module';
     PortfoliosModule, 
     BusinessUnitsModule,
     AuthModule,
-    PrismaModule
+    PrismaModule,
+    WithdrawalRequestsModule,
+    DashboardModule
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController,  DashboardController],
+  providers: [AppService, DashboardService],
 
 })
 export class AppModule {}

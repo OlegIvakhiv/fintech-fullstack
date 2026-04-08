@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { AuthModule } from 'src/auth/auth-module';
@@ -7,8 +7,14 @@ import { AuthModule } from 'src/auth/auth-module';
 //  It uses PrismaService for database operations and has a controller to handle HTTP requests.
 
 @Module({
-  imports: [AuthModule],
+  imports: [forwardRef(() => AuthModule)],
   controllers: [UsersController],
-  providers: [UsersService]
+  providers: [UsersService],
+   exports: [UsersService]
 })
 export class UsersModule {}
+
+
+
+
+// FintechLord_228
