@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateDepositDto, CreateDivestmentDto, CreateInvestmentDto, CreateTransferDto, CreateWithdrawDto } from './dto/create-transactions.dto';
 import { RolesGuard } from 'src/auth/guards/roles.guards';
@@ -35,11 +35,30 @@ export class TransactionsController {
     }
 
     @Get('history/:accountId') // GET /transactions/history/1
-    @Roles(Role.ADMIN)  
+    @Roles(Role.ADMIN)
     async getHistory(@Param('accountId') accountId: string) {
         return this.transactionsService.getAccountHistory(+accountId);
     }
 
+    @Get('me')
+    @Roles(Role.INVESTOR, Role.ADMIN)   // both roles can access, but the logic returns only the caller's transactions
+    async getMyTransactions(@Req() req) {
+        // req.user comes from JwtAuthGuard (set by JwtStrategy)
+        const userId = req.user.userId;   // or req.user.sub, depending on your JwtStrategy
+        return this.transactionsService.findByUserId(userId);
+    }
+
+    @Post('cross-currency-transfer')
+    @Roles(Role.INVESTOR, Role.ADMIN)
+    async crossCurrencyTransfer(@Req() req, @Body() body: { fromAccountId: number; toAccountId: number; amount: number }) {
+        const userId = req.user.userId;
+        return this.transactionsService.createCrossCurrencyTransfer(
+            userId,
+            body.fromAccountId,
+            body.toAccountId,
+            body.amount,
+        );
+    }
 }
 
 
@@ -56,6 +75,8 @@ export class InvestmentsController {
         return await this.transactionsService.invest(dto);
     }
 }
+
+
 
 
 
@@ -97,5 +118,10 @@ export class DivestmentsController {
     async createDivestment(@Body() dto: CreateDivestmentDto) {
         return await this.transactionsService.divest(dto);
     }
+
+
 }
+
+
+
 

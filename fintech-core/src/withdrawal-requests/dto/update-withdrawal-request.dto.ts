@@ -9,5 +9,5 @@ export enum RequestAction {
 
 export class UpdateWithdrawalRequestDto extends PartialType(CreateWithdrawalRequestDto) {
   @IsEnum(RequestAction)
-  action: RequestAction;
+  action!: RequestAction;
 }

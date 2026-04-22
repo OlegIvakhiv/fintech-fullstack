@@ -1,18 +1,20 @@
 import { IsInt, IsPositive, IsNumber, IsOptional, IsString, IsEnum, ValidateIf } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { WithdrawalType, WithdrawalMethod } from '@prisma/client';
 
 // CreateWithdrawalRequestDto
 export class CreateWithdrawalRequestDto {
   @IsInt()
-  accountId: number;
+  accountId!: number;
 
   // Type field (required) - determines which withdrawal flow
   @IsEnum(WithdrawalType)
-  withdrawalType: WithdrawalType;
+  withdrawalType!: WithdrawalType;
 
-  @IsNumber()
+  @Transform(({ value }) => Math.round(Number(value) * 1e8) / 1e8)
+  @IsNumber({ maxDecimalPlaces: 8 })
   @IsPositive()
-  amount: number;
+  amount!: number;
 
   // Type 1: BUSINESS_UNIT_TO_ACCOUNT
   // Required only for Type 1 & 2

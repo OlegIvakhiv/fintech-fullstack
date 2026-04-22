@@ -1,5 +1,20 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateBusinessUnitDto } from './create-business-unit.dto';
+import { IsString, IsOptional, IsNumber, IsEnum } from 'class-validator';
+import { Currency } from '@prisma/client';
 
-// update a business unit's information based on its ID.
-export class UpdateBusinessUnitDto extends PartialType(CreateBusinessUnitDto) {}
+export class UpdateBusinessUnitDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsNumber()
+  monthlyROI?: number;
+
+  @IsOptional()
+  @IsEnum(Currency)
+  currency?: Currency;
+}

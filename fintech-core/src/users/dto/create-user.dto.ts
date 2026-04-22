@@ -3,10 +3,10 @@ import { Role } from '@prisma/client';
 
 export class CreateUserDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
-  password: string; // Changed from password_hash to match DB
+  password!: string; // Changed from password_hash to match DB
 
   @IsOptional()
   @IsString()

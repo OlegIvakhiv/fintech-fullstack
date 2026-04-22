@@ -28,41 +28,21 @@ export class BusinessUnitsController {
     return this.businessUnitsService.findAll();
   }
 
-  // ✅ GET /business-units/:id - Get details of specific business unit
-  @Get(':id')
-  @Roles(Role.ADMIN, Role.INVESTOR)
-  findOne(@Param('id') id: string) {
-    return this.businessUnitsService.findOne(+id);
-  }
-
-  // ✅ NEW: POST /business-units/:id/roi - Set monthly ROI (ADMIN only)
-  // Body: {
-  //   "month": 3,
-  //   "year": 2024,
-  //   "monthlyROI": 1.5,
-  //   "totalPoolValue": 50000
-  // }
-  @Post(':id/roi')
-  @Roles(Role.ADMIN)
-  setMonthlyROI(@Param('id') id: string, @Body() dto: SetMonthlyROIDto) {
-    return this.businessUnitsService.setMonthlyROI(+id, dto);
-  }
-
-  // ✅ NEW: GET /business-units/:id/roi-history - Get ROI history (ADMIN & INVESTOR)
-  // Query params: ?year=2024 (optional)
+  // ✅ GET /business-units/:id/roi-history - Get ROI history (must come before /:id)
   @Get(':id/roi-history')
   @Roles(Role.ADMIN, Role.INVESTOR)
   getROIHistory(@Param('id') id: string, @Query('year') year?: string) {
     return this.businessUnitsService.getROIHistory(+id, year ? +year : undefined);
   }
 
-  // ✅ NEW: GET /business-units/:id/roi-current - Get current month's ROI
+  // ✅ GET /business-units/:id/roi-current - Get current month's ROI (must come before /:id)
   @Get(':id/roi-current')
   @Roles(Role.ADMIN, Role.INVESTOR)
   getCurrentMonthROI(@Param('id') id: string) {
     return this.businessUnitsService.getCurrentMonthROI(+id);
   }
 
+  // ✅ GET /business-units/:id/current-month-projection/:amount (must come before /:id)
   @Get(':id/current-month-projection/:amount')
   async getCurrentMonthProjection(
     @Param('id') id: string,
@@ -74,9 +54,7 @@ export class BusinessUnitsController {
     );
   }
 
-  // ✅ NEW: GET /business-units/:buId/investor-earnings/:investmentAmount
-  // Calculates how much an investor has earned based on their investment
-  // Example: GET /business-units/1/investor-earnings/1000
+  // ✅ GET /business-units/:buId/investor-earnings/:investmentAmount (must come before /:id)
   @Get(':buId/investor-earnings/:investmentAmount')
   @Roles(Role.ADMIN, Role.INVESTOR)
   calculateInvestorEarnings(
@@ -84,10 +62,31 @@ export class BusinessUnitsController {
     @Param('investmentAmount') investmentAmount: string,
   ) {
     return this.businessUnitsService.calculateInvestorEarnings(
-      +buId, // investmentId (not used in this version, could be enhanced)
+      +buId,
       +investmentAmount,
       +buId,
     );
+  }
+
+  // ✅ GET /business-units/:id - Get details of specific business unit (LAST GET!)
+  @Get(':id')
+  @Roles(Role.ADMIN, Role.INVESTOR)
+  findOne(@Param('id') id: string) {
+    return this.businessUnitsService.findOne(+id);
+  }
+
+  // ✅ POST /business-units/:id/roi - Set/Create monthly ROI (ADMIN only)
+  @Post(':id/roi')
+  @Roles(Role.ADMIN)
+  setMonthlyROI(@Param('id') id: string, @Body() dto: SetMonthlyROIDto) {
+    return this.businessUnitsService.setMonthlyROI(+id, dto);
+  }
+
+  // ✅ NEW: DELETE /business-units/:id/roi/:roiId - Delete specific ROI record
+  @Delete(':id/roi/:roiId')
+  @Roles(Role.ADMIN)
+  deleteROI(@Param('id') id: string, @Param('roiId') roiId: string) {
+    return this.businessUnitsService.deleteROI(+id, +roiId);
   }
 
   // ✅ PATCH /business-units/:id - Update business unit info (ADMIN only)

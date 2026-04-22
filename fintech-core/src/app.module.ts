@@ -13,6 +13,8 @@ import { WithdrawalRequestsModule } from './withdrawal-requests/withdrawal-reque
 import { DashboardService } from './dashboard/dashboard.service';
 import { DashboardController } from './dashboard/dashboard.controller';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ExchangeModule } from './exchenge/exchange.module';
+import { FundsModule } from './funds/funds.module';
 
 // The main application module that imports all feature modules (Users, Transactions, Accounts, Portfolios) and sets up global configuration. 
 // It also defines the main controller and service for the application. 
@@ -27,7 +29,9 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AuthModule,
     PrismaModule,
     WithdrawalRequestsModule,
-    DashboardModule
+    DashboardModule,
+    ExchangeModule,
+    FundsModule
   ],
   controllers: [AppController,  DashboardController],
   providers: [AppService, DashboardService],

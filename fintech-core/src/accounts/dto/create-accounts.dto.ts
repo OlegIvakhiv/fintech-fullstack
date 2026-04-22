@@ -1,23 +1,24 @@
-import { IsString, IsEnum, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsNumber, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { Currency } from '@prisma/client';
 
 export class CreateAccountDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsString()
-  type: string;
+  type!: string;
 
-  @IsEnum(Currency, {
-    message: 'currency must be one of: USD, EUR, UAH',
-  })
-  currency: Currency;
+  @IsEnum(Currency, { message: 'currency must be one of: USD, EUR, UAH' })
+  currency!: Currency;
 
-  @IsNumber()
   @IsOptional()
+  @Transform(({ value }) => Math.round(Number(value) * 1e8) / 1e8)
+  @IsNumber({ maxDecimalPlaces: 8 })
+  @Min(0)
   initialBalance?: number;
 
-  @IsNumber()
   @IsOptional()
+  @IsNumber()
   portfolioId?: number;
 }

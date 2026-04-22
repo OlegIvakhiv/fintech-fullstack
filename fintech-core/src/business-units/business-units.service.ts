@@ -3,102 +3,181 @@ import { CreateBusinessUnitDto } from './dto/create-business-unit.dto';
 import { UpdateBusinessUnitDto } from './dto/update-business-unit.dto';
 import { SetMonthlyROIDto } from './dto/set-monthly-roi.dto';
 import { PrismaService } from '../prisma-service/prisma.service';
+import { Currency } from '@prisma/client';
+import Big from 'big.js';
 
-// Service for managing business units - create, list, ROI tracking, etc.
+Big.RM = Big.roundHalfEven;
+Big.DP = 8;
+
 @Injectable()
 export class BusinessUnitsService {
   constructor(private prisma: PrismaService) {}
 
-  // Create a new business unit with the provided details
-  async create(data: CreateBusinessUnitDto) { 
-    return await this.prisma.businessUnit.create({
+  async create(data: CreateBusinessUnitDto) {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
+
+    const month = data.month || currentMonth;
+    const year = data.year || currentYear;
+
+    if (month < 1 || month > 12)
+      throw new BadRequestException('Month must be between 1 and 12');
+    if (year > currentYear || (year === currentYear && month > currentMonth))
+      throw new BadRequestException('Cannot create business unit with future date');
+
+    const currency = data.currency as Currency;
+
+    const bu = await this.prisma.businessUnit.create({
       data: {
         name: data.name,
         description: data.description,
-        currency: data.currency,
-        interestRate: data.interestRate,
-       monthlyROI: data.interestRate, // ✅ NEW: Initialize monthlyROI from interestRate
+        currency,
+        interestRate: data.monthlyROI || 0,
+        monthlyROI: data.monthlyROI || 0,
+        annualROI: data.monthlyROI ? this.calculateAnnualROI(data.monthlyROI) : 0,
         status: 'ACTIVE',
       },
     });
+
+    if (data.monthlyROI) {
+      const totalDistributed = new Big(data.totalPoolValue?.toString() ?? '0')
+        .times(new Big(data.monthlyROI.toString()))
+        .div(100)
+        .toString();
+
+      await this.prisma.businessUnitROI.create({
+        data: {
+          businessUnitId: bu.id,
+          month,
+          year,
+          monthlyROI: data.monthlyROI,
+          totalPoolValue: data.totalPoolValue?.toString() ?? '0',
+          totalDistributed,
+          currency,
+        },
+      });
+    }
+
+    return bu;
   }
 
-  // Get a list of all active business units in the system,
-  // ordered by creation date (newest first)
   async findAll() {
-    return await this.prisma.businessUnit.findMany({
+    return this.prisma.businessUnit.findMany({
       where: { status: 'ACTIVE' },
       include: {
-        roiHistory: {
-          orderBy: { createdAt: 'desc' },
-          take: 12, // Last 12 months
-        },
+        roiHistory: { orderBy: { createdAt: 'desc' }, take: 12 },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // Retrieve details of a specific business unit by its ID
-  // Includes full ROI history
   async findOne(id: number) {
     const unit = await this.prisma.businessUnit.findUnique({
       where: { id },
       include: {
-        journalEntries: {
-          orderBy: { createdAt: 'desc' },
-          take: 20, // Last 20 entries
-        },
-        roiHistory: {
-          orderBy: { createdAt: 'desc' },
-          take: 12, // Last 12 months
-        },
-      }
+        journalEntries: { orderBy: { createdAt: 'desc' }, take: 20 },
+        roiHistory: { orderBy: [{ year: 'desc' }, { month: 'desc' }] },
+      },
     });
     if (!unit) throw new NotFoundException('Business Unit not found');
-    return unit;
+
+    const investments = await this.prisma.investment.findMany({
+      where: { businessUnitId: id, status: 'ACTIVE' },
+      select: { amount: true, portfolio: { select: { userId: true } } },
+    });
+
+    const totalPoolValue = investments
+      .reduce((sum, inv) => sum.plus(new Big(inv.amount.toString())), new Big(0))
+      .toNumber();
+
+    const uniqueInvestorIds = new Set(investments.map(inv => inv.portfolio.userId));
+
+    return { ...unit, totalPoolValue, investorCount: uniqueInvestorIds.size };
   }
 
-  // Update a business unit's information based on its ID
-  async update(id: number, data: any) {
-    return await this.prisma.businessUnit.update({
-      where: { id },
-      data,
-    });
-  }
-
-  // ✅ NEW: Set monthly ROI for a business unit
-  // This creates or updates the ROI record for a specific month/year
-  async setMonthlyROI(id: number, dto: SetMonthlyROIDto) {
-    // Verify business unit exists
-    const bu = await this.prisma.businessUnit.findUnique({
-      where: { id },
-    });
+  async update(id: number, data: UpdateBusinessUnitDto) {
+    const bu = await this.prisma.businessUnit.findUnique({ where: { id } });
     if (!bu) throw new NotFoundException('Business Unit not found');
 
-    // ✅ Validate month and year
-    if (dto.month < 1 || dto.month > 12) {
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.currency !== undefined) updateData.currency = data.currency as Currency;
+
+    if (data.monthlyROI !== undefined) {
+      updateData.monthlyROI = data.monthlyROI;
+      updateData.annualROI = this.calculateAnnualROI(data.monthlyROI);
+      updateData.lastROIUpdate = new Date();
+
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      const investments = await this.prisma.investment.findMany({
+        where: { businessUnitId: id, status: 'ACTIVE' },
+        select: { amount: true },
+      });
+
+      const totalPoolValue = investments
+        .reduce((sum, inv) => sum.plus(new Big(inv.amount.toString())), new Big(0));
+
+      const totalDistributed = totalPoolValue
+        .times(new Big(data.monthlyROI.toString()))
+        .div(100);
+
+      await this.prisma.businessUnitROI.upsert({
+        where: {
+          businessUnitId_month_year: { businessUnitId: id, month: currentMonth, year: currentYear },
+        },
+        update: {
+          monthlyROI: data.monthlyROI,
+          totalPoolValue: totalPoolValue.toString(),
+          totalDistributed: totalDistributed.toString(),
+          updatedAt: new Date(),
+        },
+        create: {
+          businessUnitId: id,
+          month: currentMonth,
+          year: currentYear,
+          monthlyROI: data.monthlyROI,
+          totalPoolValue: totalPoolValue.toString(),
+          totalDistributed: totalDistributed.toString(),
+          currency: (data.currency ?? bu.currency) as Currency,
+        },
+      });
+    }
+
+    return this.prisma.businessUnit.update({ where: { id }, data: updateData });
+  }
+
+  async setMonthlyROI(id: number, dto: SetMonthlyROIDto) {
+    const bu = await this.prisma.businessUnit.findUnique({ where: { id } });
+    if (!bu) throw new NotFoundException('Business Unit not found');
+
+    if (dto.month < 1 || dto.month > 12)
       throw new BadRequestException('Month must be between 1 and 12');
-    }
-    if (dto.year < 2000 || dto.year > 2099) {
-      throw new BadRequestException('Year must be between 2000 and 2099');
-    }
 
-    // Calculate distributed amount based on ROI and pool value
-    const totalDistributed = (dto.totalPoolValue * dto.monthlyROI) / 100;
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
 
-    // Create or update ROI record
+    if (dto.year > currentYear || (dto.year === currentYear && dto.month > currentMonth))
+      throw new BadRequestException('Cannot create ROI record for future date');
+
+    const totalDistributed = new Big(dto.totalPoolValue.toString())
+      .times(new Big(dto.monthlyROI.toString()))
+      .div(100)
+      .toString();
+
     const roiRecord = await this.prisma.businessUnitROI.upsert({
       where: {
-        businessUnitId_month_year: {
-          businessUnitId: id,
-          month: dto.month,
-          year: dto.year,
-        },
+        businessUnitId_month_year: { businessUnitId: id, month: dto.month, year: dto.year },
       },
       update: {
         monthlyROI: dto.monthlyROI,
-        totalPoolValue: dto.totalPoolValue,
-        totalDistributed: totalDistributed,
+        totalPoolValue: dto.totalPoolValue.toString(),
+        totalDistributed,
         updatedAt: new Date(),
       },
       create: {
@@ -106,19 +185,17 @@ export class BusinessUnitsService {
         month: dto.month,
         year: dto.year,
         monthlyROI: dto.monthlyROI,
-        totalPoolValue: dto.totalPoolValue,
-        totalDistributed: totalDistributed,
+        totalPoolValue: dto.totalPoolValue.toString(),
+        totalDistributed,
+        currency: bu.currency,
       },
     });
 
-    // ✅ Update business unit's current monthlyROI and annualROI
-    const annualROI = this.calculateAnnualROI(dto.monthlyROI);
-    
     await this.prisma.businessUnit.update({
       where: { id },
       data: {
         monthlyROI: dto.monthlyROI,
-        annualROI: annualROI,
+        annualROI: this.calculateAnnualROI(dto.monthlyROI),
         lastROIUpdate: new Date(),
       },
     });
@@ -129,132 +206,134 @@ export class BusinessUnitsService {
     };
   }
 
-  // ✅ NEW: Get ROI history for a business unit
-  async getROIHistory(id: number, year?: number) {
-    const where: any = { businessUnitId: id };
-    
-    if (year) {
-      where.year = year;
-    }
+  async deleteROI(buId: number, roiId: number) {
+    const roiRecord = await this.prisma.businessUnitROI.findUnique({ where: { id: roiId } });
+    if (!roiRecord) throw new NotFoundException('ROI record not found');
+    if (roiRecord.businessUnitId !== buId)
+      throw new BadRequestException('ROI record does not belong to this business unit');
 
-    const history = await this.prisma.businessUnitROI.findMany({
-      where,
-      orderBy: [
-        { year: 'desc' },
-        { month: 'desc' },
-      ],
+    await this.prisma.businessUnitROI.delete({ where: { id: roiId } });
+
+    const remaining = await this.prisma.businessUnitROI.findMany({
+      where: { businessUnitId: buId },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+      take: 1,
     });
 
-    if (history.length === 0) {
-      throw new NotFoundException('No ROI history found for this business unit');
-    }
+    const newMonthlyROI = remaining.length > 0 ? remaining[0].monthlyROI : null;
+    const newAnnualROI = newMonthlyROI !== null ? this.calculateAnnualROI(newMonthlyROI) : null;
 
-    return history;
+    await this.prisma.businessUnit.update({
+      where: { id: buId },
+      data: { monthlyROI: newMonthlyROI, annualROI: newAnnualROI, lastROIUpdate: new Date() },
+    });
+
+    return { message: 'ROI record deleted successfully', newCurrentROI: newMonthlyROI };
   }
 
-  // ✅ NEW: Get current month's ROI for a business unit
+  async getROIHistory(id: number, year?: number) {
+    const where: any = { businessUnitId: id };
+    if (year) where.year = year;
+
+    return this.prisma.businessUnitROI.findMany({
+      where,
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+    });
+  }
+
   async getCurrentMonthROI(id: number) {
     const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
-
-    const roiRecord = await this.prisma.businessUnitROI.findUnique({
+    return this.prisma.businessUnitROI.findUnique({
       where: {
         businessUnitId_month_year: {
           businessUnitId: id,
-          month: currentMonth,
-          year: currentYear,
+          month: now.getMonth() + 1,
+          year: now.getFullYear(),
         },
       },
     });
-
-    return roiRecord || null;
   }
 
+  async getCurrentMonthProjection(id: number, amount: number) {
+    const unit = await this.prisma.businessUnit.findUnique({
+      where: { id },
+      select: { monthlyROI: true, currency: true },
+    });
+    if (!unit) throw new NotFoundException('Business Unit not found');
 
-  // ✅ NEW: Get current month's simple projected earnings for a given amount
-async getCurrentMonthProjection(id: number, amount: number) {
-  const unit = await this.prisma.businessUnit.findUnique({
-    where: { id },
-    select: { monthlyROI: true, currency: true }
-  });
-  if (!unit) throw new NotFoundException('Business Unit not found');
+    const monthlyROI = unit.monthlyROI ?? 0;
+    const projectedEarnings = new Big(amount.toString())
+      .times(new Big(monthlyROI.toString()))
+      .div(100)
+      .round(8)
+      .toNumber();
 
-  const monthlyROI = unit.monthlyROI ?? 0;
-  const projectedEarnings = amount * (monthlyROI / 100);
+    return { monthlyROI, projectedEarnings, currency: unit.currency };
+  }
 
-  return {
-    monthlyROI,
-    projectedEarnings,
-    currency: unit.currency,
-  };
-}
-
-  // ✅ NEW: Calculate investor's earnings based on investment and ROI
-  // This is used to show real-time earnings to investors
   async calculateInvestorEarnings(
     investmentId: number,
     investmentAmount: number,
-    businessUnitId: number
+    businessUnitId: number,
   ) {
-    // Get all ROI records for this business unit
     const roiRecords = await this.prisma.businessUnitROI.findMany({
       where: { businessUnitId },
       orderBy: { createdAt: 'asc' },
     });
 
-    if (roiRecords.length === 0) {
-      return {
-        totalEarnings: 0,
-        roiBreakdown: [],
-      };
-    }
+    if (roiRecords.length === 0) return { totalEarnings: 0, roiBreakdown: [] };
 
-    let totalEarnings = 0;
+    let totalEarnings = new Big(0);
     const roiBreakdown = roiRecords.map((record) => {
-      // Calculate investor's share of earnings for this month
-      // Earnings = (Investment Amount / Total Pool Value) × Total Distributed
-      const investorShare =
-        (investmentAmount / Number(record.totalPoolValue)) *
-        Number(record.totalDistributed);
+      const poolValue = new Big(record.totalPoolValue.toString());
+      if (poolValue.eq(0)) {
+        return {
+          month: this.getMonthName(record.month),
+          year: record.year,
+          monthlyROI: record.monthlyROI,
+          poolValue: record.totalPoolValue,
+          earned: 0,
+        };
+      }
 
-      totalEarnings += investorShare;
+      const investorShare = new Big(investmentAmount.toString())
+        .div(poolValue)
+        .times(new Big(record.totalDistributed.toString()));
+
+      totalEarnings = totalEarnings.plus(investorShare);
 
       return {
         month: this.getMonthName(record.month),
         year: record.year,
         monthlyROI: record.monthlyROI,
         poolValue: record.totalPoolValue,
-        earned: investorShare,
+        earned: investorShare.round(8).toNumber(),
       };
     });
 
     return {
-      totalEarnings,
+      totalEarnings: totalEarnings.round(8).toNumber(),
       roiBreakdown,
     };
   }
 
-  // ✅ HELPER: Calculate annual ROI from monthly ROI
-  // Formula: (1 + monthly/100)^12 - 1
   private calculateAnnualROI(monthlyROI: number): number {
-    const monthlyRate = 1 + monthlyROI / 100;
-    const annualRate = Math.pow(monthlyRate, 12) - 1;
-    return parseFloat((annualRate * 100).toFixed(2)); // Return as percentage
+    return parseFloat(
+      new Big(1)
+        .plus(new Big(monthlyROI).div(100))
+        .pow(12)
+        .minus(1)
+        .times(100)
+        .toFixed(2)
+    );
   }
 
-  // ✅ HELPER: Convert month number to name
   private getMonthName(month: number): string {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ];
-    return months[month - 1];
+    return new Date(2024, month - 1).toLocaleDateString('en-US', { month: 'long' });
   }
 
-  // Soft delete - mark as INACTIVE instead of physical deletion
   async remove(id: number) {
-    return await this.prisma.businessUnit.update({
+    return this.prisma.businessUnit.update({
       where: { id },
       data: { status: 'INACTIVE' },
     });

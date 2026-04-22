@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma-service/prisma.service';
+import Big from 'big.js';
 
-// Interface for investor dashboard stats
+Big.RM = Big.roundHalfEven;
+Big.DP = 8;
+
 export interface InvestorDashboardStats {
   totalRevenue: number;
   totalSaving: number;
@@ -9,7 +12,7 @@ export interface InvestorDashboardStats {
   availableBalance: number;
   pendingWithdrawals: number;
 }
-// Interface for admin dashboard stats
+
 export interface AdminDashboardStats {
   totalUsers: number;
   totalInvested: number;
@@ -20,15 +23,12 @@ export interface AdminDashboardStats {
   systemBalance: number;
 }
 
-// Service for getting dashboard stats
 @Injectable()
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
-  // Get investor dashboard stats
   async getInvestorStats(userId: number): Promise<InvestorDashboardStats> {
     try {
-      // Get user's portfolio with accounts and investments
       const portfolio = await this.prisma.portfolio.findFirst({
         where: { userId },
         include: {
@@ -41,51 +41,37 @@ export class DashboardService {
       });
 
       if (!portfolio) {
-        return {
-          totalRevenue: 0,
-          totalSaving: 0,
-          taxesPaid: 0,
-          availableBalance: 0,
-          pendingWithdrawals: 0,
-        };
+        return { totalRevenue: 0, totalSaving: 0, taxesPaid: 0, availableBalance: 0, pendingWithdrawals: 0 };
       }
 
-      // Available Balance = Sum of all account balances
-      const availableBalance = portfolio.accounts.reduce((sum, account) => {
-        return sum + parseFloat(account.balance.toString());
-      }, 0);
+      const availableBalance = portfolio.accounts
+        .reduce((sum, acc) => sum.plus(new Big(acc.balance.toString())), new Big(0))
+        .round(8)
+        .toNumber();
 
-      // Total Revenue = Sum of earned interest from active investments
-      // Revenue = investment.amount * businessUnit.interestRate / 100
-      let totalRevenue = 0;
+      let totalRevenue = new Big(0);
       for (const investment of portfolio.investments) {
         if (investment.businessUnit) {
-          const earned =
-            parseFloat(investment.amount.toString()) *
-            (investment.businessUnit.interestRate / 100);
-          totalRevenue += earned;
+          const earned = new Big(investment.amount.toString())
+            .times(new Big(investment.businessUnit.monthlyROI?.toString() ?? '0'))
+            .div(100);
+          totalRevenue = totalRevenue.plus(earned);
         }
       }
 
-      // Total Saving = Sum of all active investments (money currently invested)
-      const totalSaving = portfolio.investments.reduce((sum, investment) => {
-        return sum + parseFloat(investment.amount.toString());
-      }, 0);
+      const totalSaving = portfolio.investments
+        .reduce((sum, inv) => sum.plus(new Big(inv.amount.toString())), new Big(0))
+        .round(8)
+        .toNumber();
 
-      // Taxes to be paid = 10% of total revenue (simplified calculation)
-      const taxesPaid = totalRevenue * 0.1;
+      const taxesPaid = totalRevenue.times('0.1').round(8).toNumber();
 
-      // Pending Withdrawals = Count of PENDING withdrawal requests for this user
-      const pendingWithdrawals =
-        await this.prisma.withdrawalRequest.count({
-          where: {
-            investorId: userId,
-            status: 'PENDING',
-          },
-        });
+      const pendingWithdrawals = await this.prisma.withdrawalRequest.count({
+        where: { investorId: userId, status: 'PENDING' },
+      });
 
       return {
-        totalRevenue,
+        totalRevenue: totalRevenue.round(8).toNumber(),
         totalSaving,
         taxesPaid,
         availableBalance,
@@ -93,76 +79,93 @@ export class DashboardService {
       };
     } catch (error) {
       console.error('Error getting investor stats:', error);
-      return {
-        totalRevenue: 0,
-        totalSaving: 0,
-        taxesPaid: 0,
-        availableBalance: 0,
-        pendingWithdrawals: 0,
-      };
+      return { totalRevenue: 0, totalSaving: 0, taxesPaid: 0, availableBalance: 0, pendingWithdrawals: 0 };
     }
   }
 
-  // Get admin dashboard stats
   async getAdminStats(): Promise<AdminDashboardStats> {
     try {
-      // Total Users = Count of all users
-      const totalUsers = await this.prisma.user.count();
+      const [
+        totalUsers, totalAccounts, activeBusinessUnits,
+        totalTransactions, pendingWithdrawals, investments, businessUnits,
+      ] = await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.account.count(),
+        this.prisma.businessUnit.count({ where: { status: 'ACTIVE' } }),
+        this.prisma.journalEntry.count(),
+        this.prisma.withdrawalRequest.count({ where: { status: 'PENDING' } }),
+        this.prisma.investment.findMany({ where: { status: 'ACTIVE' } }),
+        this.prisma.businessUnit.findMany(),
+      ]);
 
-      // Total Accounts = Count of all accounts
-      const totalAccounts = await this.prisma.account.count();
+      const totalInvested = investments
+        .reduce((sum, inv) => sum.plus(new Big(inv.amount.toString())), new Big(0))
+        .round(8)
+        .toNumber();
 
-      // Active Business Units = Count of ACTIVE business units
-      const activeBusinessUnits =
-        await this.prisma.businessUnit.count({
-          where: { status: 'ACTIVE' },
-        });
-
-      // Total Transactions = Count of all journal entries
-      const totalTransactions = await this.prisma.journalEntry.count();
-
-      // Pending Withdrawals = Count of PENDING withdrawal requests
-      const pendingWithdrawals =
-        await this.prisma.withdrawalRequest.count({
-          where: { status: 'PENDING' },
-        });
-
-      // Total Invested = Sum of all ACTIVE investments
-      const investments = await this.prisma.investment.findMany({
-        where: { status: 'ACTIVE' },
-      });
-
-      const totalInvested = investments.reduce((sum, investment) => {
-        return sum + parseFloat(investment.amount.toString());
-      }, 0);
-
-      // System Balance = Sum of all business unit balances
-      const businessUnits = await this.prisma.businessUnit.findMany();
-
-      const systemBalance = businessUnits.reduce((sum, bu) => {
-        return sum + parseFloat(bu.balance.toString());
-      }, 0);
+      const systemBalance = businessUnits
+        .reduce((sum, bu) => sum.plus(new Big(bu.balance.toString())), new Big(0))
+        .round(8)
+        .toNumber();
 
       return {
-        totalUsers,
-        totalInvested,
-        pendingWithdrawals,
-        activeBusinessUnits,
-        totalTransactions,
-        totalAccounts,
-        systemBalance,
+        totalUsers, totalInvested, pendingWithdrawals,
+        activeBusinessUnits, totalTransactions, totalAccounts, systemBalance,
       };
     } catch (error) {
       console.error('Error getting admin stats:', error);
       return {
-        totalUsers: 0,
-        totalInvested: 0,
-        pendingWithdrawals: 0,
-        activeBusinessUnits: 0,
-        totalTransactions: 0,
-        totalAccounts: 0,
-        systemBalance: 0,
+        totalUsers: 0, totalInvested: 0, pendingWithdrawals: 0,
+        activeBusinessUnits: 0, totalTransactions: 0, totalAccounts: 0, systemBalance: 0,
       };
     }
+  }
+
+  async getInvestorMonthlyEarnings(userId: number) {
+    const portfolio = await this.prisma.portfolio.findFirst({
+      where: { userId },
+      include: {
+        investments: {
+          where: { status: 'ACTIVE' },
+          include: {
+            businessUnit: { include: { roiHistory: true } },
+          },
+        },
+      },
+    });
+
+    if (!portfolio || portfolio.investments.length === 0) return [];
+
+    const earningsByMonth = new Map<string, Big>();
+
+    for (const investment of portfolio.investments) {
+      const investedAmount = new Big(investment.amount.toString());
+
+      for (const roi of investment.businessUnit.roiHistory) {
+        const totalPool = new Big(roi.totalPoolValue.toString());
+        if (totalPool.eq(0)) continue;
+
+        const investorShare = investedAmount
+          .div(totalPool)
+          .times(new Big(roi.totalDistributed.toString()));
+
+        const monthKey = `${roi.year}-${roi.month.toString().padStart(2, '0')}`;
+        earningsByMonth.set(
+          monthKey,
+          (earningsByMonth.get(monthKey) ?? new Big(0)).plus(investorShare),
+        );
+      }
+    }
+
+    return Array.from(earningsByMonth.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, earnings]) => {
+        const [year, month] = key.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1);
+        return {
+          month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          earnings: earnings.round(8).toNumber(),
+        };
+      });
   }
 }

@@ -3,6 +3,7 @@ import { Controller, Post, Body, HttpCode, HttpStatus, ConflictException } from 
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
+import { Prisma } from '@prisma/client';
 
 // This controller handles user registration and login
 @Controller('auth')
@@ -11,7 +12,7 @@ export class AuthController {
     private authService: AuthService,
     private usersService: UsersService
   ) { }
- 
+
   @HttpCode(HttpStatus.OK)
   @Post('login') // POST /auth/login
   signIn(@Body() signInDto: Record<string, any>) {
@@ -32,13 +33,13 @@ export class AuthController {
       const { password, ...result } = user;
       return result;
     } catch (error) {
-      // Prisma throws P2002 if unique constraint fails (email already exists)
-      if (error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
         throw new ConflictException('Email already in use');
       }
       throw error;
     }
   }
-
-
 }

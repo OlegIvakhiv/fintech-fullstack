@@ -36,9 +36,11 @@ export class UsersService {
 
   // list all users in the system. T
   // his is a simple retrieval of all user records from the database.
-  async findAll() {
-    return this.prisma.user.findMany();
-  }
+async findAll() {
+  return this.prisma.user.findMany({
+    include: { portfolios: { select: { id: true } } },
+  });
+}
 
   // update a user's information based on their ID. 
   // This allows modifying the user's details such as email or password.

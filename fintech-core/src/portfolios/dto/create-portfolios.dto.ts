@@ -1,9 +1,9 @@
 import { IsNumber, IsString } from "class-validator";
 
 export class CreatePortfolioDto {
-  @IsString() 
-  name: string; // Portfolio name
+  @IsString()
+  name!: string; // Portfolio name
 
   @IsNumber()
-  userId: number; // User ID
+  userId!: number; // User ID
 }

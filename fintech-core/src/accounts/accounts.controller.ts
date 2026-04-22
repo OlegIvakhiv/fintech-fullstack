@@ -21,6 +21,12 @@ export class AccountsController {
     return this.accountsService.create(body);
   }
 
+  @Post('for-user') 
+  @Roles(Role.ADMIN)
+  createForUser(@Body() body: CreateAccountDto) {
+    return this.accountsService.create(body);
+  }
+
   @Get() // GET /accounts
   @Roles(Role.ADMIN)
   findAll() {
@@ -32,6 +38,13 @@ export class AccountsController {
   async getMyAccounts(@Req() req) {
     const userId = req.user.userId;    // from JWT strategy
     return this.accountsService.findByUser(userId);
+  }
+
+  @Get('me/count')
+  @Roles(Role.INVESTOR)
+  async getMyAccountCount(@Req() req) {
+    const count = await this.accountsService.countByUser(req.user.userId);
+    return { count };
   }
 
   @Get(':id') // GET /accounts/1
@@ -50,12 +63,12 @@ export class AccountsController {
   @Patch(':id') // PATCH /accounts/1
   @Roles(Role.ADMIN)
   update(@Param('id') id: string, @Body() body: CreateAccountDto) {
-    return this.accountsService.update(+id, body);
-  }
+  return this.accountsService.update(+id, body);
+}
 
   @Delete(':id') // DELETE /accounts/1
   @Roles(Role.ADMIN)
   remove(@Param('id') id: string) {
-    return this.accountsService.remove(+id);
-  }
+  return this.accountsService.remove(+id);
+}
 }
