@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: secret
-      POSTGRES_UDB: fintech-db
+      POSTGRES_DB: fintech-db
     ports:
       - "5432:5432"
 

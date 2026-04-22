@@ -3,6 +3,7 @@
   "password": "investor123"
 }
 
+Big_investor
 investor@example.com
 investor123
 
@@ -11,5 +12,6 @@ investor123
   "password": "strongpassword123"
 }
 
-admin@test.com
+SuperAdmon_228
+SuperAdmin@test.com
 strongpassword123
