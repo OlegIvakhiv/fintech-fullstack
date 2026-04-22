@@ -23,7 +23,8 @@ enum TransactionType {
   WITHDRAW
   INVEST
   TRANSFER
-  DIVEST
+  DIVEST  
+  CURRENCY_CONVERSION
 }
 
 enum Currency {
@@ -88,14 +89,16 @@ model Account {
   portfolioId Int
   name        String
   type        String
-  balance     Decimal  @default(0.00) @db.Decimal(18, 2)
+  balance     Decimal  @default(0.00) @db.Decimal(18, 8)
   currency    Currency @default(USD)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // null = active, set = soft-deleted
 
   portfolio          Portfolio           @relation("PortfolioToAccount", fields: [portfolioId], references: [id])
   journalEntries     JournalEntry[]      @relation("AccountToJournal")
   withdrawalRequests WithdrawalRequest[]
+  fundInvestments    FundInvestment[]
 }
 
 model BusinessUnit {
@@ -103,7 +106,7 @@ model BusinessUnit {
   name         String
   description  String?
   currency     Currency @default(USD)
-  balance      Decimal  @default(0) @db.Decimal(18, 2)
+  balance      Decimal  @default(0) @db.Decimal(18, 8)
   
   monthlyROI   Float?   // Current month's ROI percentage (e.g., 1.5 means 1.5%)
   annualROI    Float? 
@@ -120,32 +123,70 @@ model BusinessUnit {
   journalEntries         JournalEntry[]      @relation("BusinessUnitToJournal")
   withdrawalRequests     WithdrawalRequest[] @relation("WithdrawalRequestsFrom")
   withdrawalRequestsTo   WithdrawalRequest[] @relation("WithdrawalRequestsTo")
+  fundAllocations        FundAllocation[]
 }
 
 model BusinessUnitROI {
-  id               Int      @id @default(autoincrement())
-  businessUnitId   Int
+  id             Int          @id @default(autoincrement())
+  businessUnitId Int
+  month          Int
+  year           Int
+  monthlyROI     Float
+  totalPoolValue   Decimal    @default(0) @db.Decimal(18, 8)
+  totalDistributed Decimal    @default(0) @db.Decimal(18, 8)
+  currency       Currency     @default(USD)  // snapshot at creation time
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  month            Int     
-  year             Int    
-  
-  monthlyROI       Float   
-  totalPoolValue   Decimal  @db.Decimal(18, 2) 
-  totalDistributed Decimal  @db.Decimal(18, 2) 
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  businessUnit     BusinessUnit @relation("BusinessUnitToROI", fields: [businessUnitId], references: [id], onDelete: Cascade)
+  businessUnit   BusinessUnit @relation("BusinessUnitToROI", fields: [businessUnitId], references: [id])
 
   @@unique([businessUnitId, month, year])
 }
+
+
+model Fund {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  currency    String   @default("USD")
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  allocations  FundAllocation[]
+  investments  FundInvestment[]
+}
+
+model FundAllocation {
+  id             Int  @id @default(autoincrement())
+  fundId         Int
+  businessUnitId Int
+  weight         Float  // percentage, e.g. 40.0 means 40%
+
+  fund         Fund         @relation(fields: [fundId], references: [id])
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id])
+
+  @@unique([fundId, businessUnitId])
+}
+
+model FundInvestment {
+  id        Int      @id @default(autoincrement())
+  fundId    Int
+  accountId Int
+  amount    Float
+  status    String   @default("ACTIVE")  // ACTIVE | WITHDRAWN
+  createdAt DateTime @default(now())
+
+  fund    Fund    @relation(fields: [fundId], references: [id])
+  account Account @relation(fields: [accountId], references: [id])
+}
+
 
 model Investment {
   id             Int              @id @default(autoincrement())
   portfolioId    Int
   businessUnitId Int
-  amount         Decimal          @db.Decimal(18, 2)
+  amount         Decimal          @db.Decimal(18, 8)
   currency       Currency
   status         InvestmentStatus @default(ACTIVE)
   createdAt      DateTime         @default(now())
@@ -169,7 +210,7 @@ model WithdrawalRequest {
   externalWallet     String?
   withdrawalMethod   WithdrawalMethod?
   
-  amount         Decimal       @db.Decimal(18, 2)
+  amount         Decimal       @db.Decimal(18, 8)
   currency       Currency
   status         RequestStatus @default(PENDING)
   requestedAt    DateTime      @default(now())
@@ -191,12 +232,13 @@ model WithdrawalRequest {
 
 model JournalEntry {
   id             Int             @id @default(autoincrement())
-  amount         Decimal         @db.Decimal(18, 2)
+  amount         Decimal         @db.Decimal(18, 8)
   accountId      Int
   transactionId  String          @default(uuid())
   businessUnitId Int?
   investmentId   Int?
   type           TransactionType @default(TRANSFER)
+  currency       Currency?       
   description    String?
   createdAt      DateTime        @default(now())
 
@@ -206,3 +248,5 @@ model JournalEntry {
 
   @@index([transactionId])
 }
+
+
