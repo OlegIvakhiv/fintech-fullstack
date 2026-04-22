@@ -90,7 +90,7 @@ export default function DepositModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       {/* DialogContent with proper centering and max-height for overflow */}
-      <DialogContent className="sm:max-w-md bg-card border-border/50 shadow-2xl max-h-[90vh] overflow-y-auto flex flex-col my-auto">
+      <DialogContent className="sm:max-w-md bg-card border-border/50  max-h-[90vh] overflow-y-auto flex flex-col my-auto">
         {/* Header with icon - custom styling */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">

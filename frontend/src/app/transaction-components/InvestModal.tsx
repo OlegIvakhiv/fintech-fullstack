@@ -150,7 +150,7 @@ export default function InvestModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       {/* DialogContent */}
-      <DialogContent className="sm:max-w-md bg-card border-border/50 shadow-2xl max-h-[90vh] overflow-y-auto flex flex-col my-auto">
+      <DialogContent className="sm:max-w-md bg-card border-border/50  max-h-[90vh] flex flex-col my-auto">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-accent/20 border border-accent/30 flex items-center justify-center flex-shrink-0">
@@ -190,36 +190,39 @@ export default function InvestModal({
               Select Account
             </label>
             <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-              <SelectTrigger className="bg-background/50 border-primary/30 text-foreground placeholder:text-muted-foreground/60 hover:border-primary/50">
-                <SelectValue placeholder="Choose an account" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border/50">
-                {accountsLoading ? (
-                  <div className="p-2 text-sm text-muted-foreground">
-                    Loading accounts...
-                  </div>
-                ) : filteredAccounts?.length ? (
-                  filteredAccounts.map((acc) => (
-                    <SelectItem 
-                      key={acc.id} 
-                      value={acc.id.toString()}
-                      className="text-foreground bg-card hover:bg-primary/10 cursor-pointer"
-                    >
-                      <span className="text-foreground font-medium">
-                        {acc.name}
-                      </span>
-                      <span className="text-muted-foreground ml-2">
-                        ({acc.balance} {acc.currency})
-                      </span>
-                    </SelectItem>
-                  ))
-                ) : (
-                  <div className="p-2 text-sm text-muted-foreground">
-                    No {businessUnit.currency} accounts available
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
+  <SelectTrigger className="w-full bg-background border-border text-foreground hover:border-primary/50 focus:ring-primary/30 h-11">
+    <SelectValue placeholder="Choose an account" />
+  </SelectTrigger>
+  <SelectContent
+    position="popper"
+    className="w-full bg-popover border-border shadow-xl z-[200]"
+  >
+    {accountsLoading ? (
+      <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+        Loading accounts...
+      </div>
+    ) : filteredAccounts?.length ? (
+      filteredAccounts.map((acc) => (
+        <SelectItem
+          key={acc.id}
+          value={acc.id.toString()}
+          className="cursor-pointer focus:bg-primary/10 focus:text-foreground py-3 px-3"
+        >
+          <div className="flex items-center justify-between w-full gap-6">
+            <span className="font-medium text-foreground">{acc.name}</span>
+            <span className="text-xs text-muted-foreground tabular-nums ml-auto">
+              {Number(acc.balance).toLocaleString('en-US', { minimumFractionDigits: 2 })} {acc.currency}
+            </span>
+          </div>
+        </SelectItem>
+      ))
+    ) : (
+      <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+        No {businessUnit.currency} accounts available
+      </div>
+    )}
+  </SelectContent>
+</Select>
           </div>
 
           {/* Amount Input */}

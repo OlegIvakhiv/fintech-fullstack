@@ -45,6 +45,8 @@ interface BusinessUnit {
   roiHistory?: ROIRecord[];
   status?: string;
   balance?: number;
+  totalPoolValue?: number;
+  investorCount?: number;
 }
 
 // This is the structure of the earnings breakdown returned by the API for a given investment amount.
@@ -303,7 +305,8 @@ function BusinessUnitDetailModal({
 
           <div className="space-y-4">
             {/* Unit Info Cards */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+              {/* Base Yield */}
               <Card className="bg-background/50 border-border">
                 <CardContent className="p-3">
                   <p className="text-xs text-muted-foreground mb-1">Base Yield</p>
@@ -311,6 +314,7 @@ function BusinessUnitDetailModal({
                 </CardContent>
               </Card>
 
+              {/* Currency */}
               <Card className="bg-background/50 border-border">
                 <CardContent className="p-3">
                   <p className="text-xs text-muted-foreground mb-1">Currency</p>
@@ -318,6 +322,7 @@ function BusinessUnitDetailModal({
                 </CardContent>
               </Card>
 
+              {/* Current ROI (if exists) */}
               {displayUnit.monthlyROI !== undefined && displayUnit.monthlyROI !== null && (
                 <Card className="bg-accent/10 border border-accent/20">
                   <CardContent className="p-3">
@@ -329,6 +334,26 @@ function BusinessUnitDetailModal({
                   </CardContent>
                 </Card>
               )}
+
+              {/* Pool Size - NEW */}
+              <Card className="bg-background/50 border-border">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Pool Size</p>
+                  <p className="text-xl font-bold text-foreground">
+                    ${(displayUnit.totalPoolValue || 0).toLocaleString()}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Investor Count - NEW */}
+              <Card className="bg-background/50 border-border">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Investors</p>
+                  <p className="text-xl font-bold text-foreground">
+                    {displayUnit.investorCount || 0}
+                  </p>
+                </CardContent>
+              </Card>
             </div>
 
             {/* INVESTOR ONLY: Earnings Calculator */}
@@ -621,9 +646,11 @@ export default function BusinessUnitsPage() {
 
                     <div className="flex items-end justify-between">
                       <div>
-                        <p className="text-[10px] uppercase font-bold text-muted opacity-50">Monthly Yield</p>
-                        <p className="text-2xl font-bold text-primary tracking-tighter">+{unit.interestRate}%</p>
-                      </div>
+                         <p className="text-[10px] uppercase font-bold text-muted opacity-50">Current ROI</p>
+                           <p className="text-2xl font-bold text-primary tracking-tighter">
+                           {unit.monthlyROI ? `+${unit.monthlyROI}%` : '—'}
+                        </p>
+                    </div>
                       <div className="text-right">
                         <p className="text-[10px] uppercase font-bold text-muted opacity-50">Status</p>
                         <p className="text-[10px] font-bold text-foreground bg-white/5 px-2 py-0.5 rounded border border-border">ACTIVE</p>
